@@ -108,7 +108,6 @@ def mfm_fc(data_in):
     split[0] = data_in[:node_num//2]
     split[1] = data_in[node_num//2:]
     output = np.amax(split, axis=0)
-    print(output.shape)
     assert output.shape == (node_num//2,)
     return output
 
@@ -121,25 +120,25 @@ class LightCNN_9(object):
             self.__dict__ = pickle.loads(data)
         else:
             self.conv1_kernel = np.random.randn(5, 5, 1, 96)*np.sqrt(1/(5*5*1))
-            self.conv1_bias = np.random.randn(96)
+            self.conv1_bias = np.zeros((96), dtype=np.double)
             self.conv2a_kernel = np.random.randn(1, 1, 48, 96)*np.sqrt(1/(1*1*48))
-            self.conv2a_bias = np.random.randn(96)
+            self.conv2a_bias = np.zeros((96), dtype=np.double)
             self.conv2_kernel = np.random.randn(3, 3, 48, 192)*np.sqrt(1/(3*3*48))
-            self.conv2_bias = np.random.randn(192)
+            self.conv2_bias = np.zeros((192), dtype=np.double)
             self.conv3a_kernel = np.random.randn(1, 1, 96, 192)*np.sqrt(1/(1*1*96))
-            self.conv3a_bias = np.random.randn(192)
+            self.conv3a_bias = np.zeros((192), dtype=np.double)
             self.conv3_kernel = np.random.randn(3, 3, 96, 384)*np.sqrt(1/(3*3*96))
-            self.conv3_bias = np.random.randn(384)
+            self.conv3_bias = np.zeros((384), dtype=np.double)
             self.conv4a_kernel = np.random.randn(1, 1, 192, 384)*np.sqrt(1/(1*1*192))
-            self.conv4a_bias = np.random.randn(384)
+            self.conv4a_bias = np.zeros((384), dtype=np.double)
             self.conv4_kernel = np.random.randn(3, 3, 192, 256)*np.sqrt(1/(3*3*192))
-            self.conv4_bias = np.random.randn(256)
+            self.conv4_bias = np.zeros((256), dtype=np.double)
             self.conv5a_kernel = np.random.randn(1, 1, 128, 256)*np.sqrt(1/(1*1*128))
-            self.conv5a_bias = np.random.randn(256)
+            self.conv5a_bias = np.zeros((256), dtype=np.double)
             self.conv5_kernel = np.random.randn(3, 3, 128, 256)*np.sqrt(1/(3*3*128))
-            self.conv5_bias = np.random.randn(256)
+            self.conv5_bias =np.zeros((256), dtype=np.double)
             self.fc_weights = np.random.randn(8*8*128, 512)
-            self.fc_bias = np.random.randn(512)
+            self.fc_bias = np.zeros((512), dtype=np.double)
         return
     def forward(self, data):
         time1 = time.time()
