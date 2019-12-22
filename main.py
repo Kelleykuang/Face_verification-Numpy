@@ -5,9 +5,11 @@ import glob
 import re
 import pickle
 import time
+
 image_width = 128
 image_height = 128
-def loader(path):
+
+def traindata_loader(path):
     # paths = ['LFW_dataset/match_pairs', 'LFW_dataset/mismatch_pairs']
     # for path in paths:
     #     dirs = os.listdir(path)
@@ -197,7 +199,7 @@ class LightCNN_9(object):
 
 if __name__ == "__main__":
     path = 'LFW_dataset/*/*/*.jpg'
-    train_data, train_label = loader(path)
+    train_data, train_label = traindata_loader(path)
     model = LightCNN_9()
     print(model.forward(train_data[0]))
     
