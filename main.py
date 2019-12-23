@@ -44,11 +44,18 @@ def conv(data_in, filter, filter_bias):
     feature_width = input_width - filter_width + 1
     feature_height = filter_num
     output = np.zeros((feature_len, feature_width, feature_height), dtype=np.double)
+    img2col = np.zeros((feature_len, feature_width, filter_len*filter_width*filter_height), dtype=np.double)
+    for i in range(feature_len):
+        for j in range(feature_width):
+            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_len,:].flatten()
     for filt_index in range(feature_height):
-        for i in range(feature_len):
-            for j in range(feature_width):
-                output[i][j][filt_index] = (data_in[i:i+filter_len,j:j+filter_len,:] * filter[:,:,:,filt_index]).sum()
-        output[:,:,filt_index] += filter_bias[filt_index]
+        filt = filter[:,:,:,filt_index].flatten()
+        output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
+    # for filt_index in range(feature_height):
+    #     for i in range(feature_len):
+    #         for j in range(feature_width):
+    #             output[i][j][filt_index] = (data_in[i:i+filter_len,j:j+filter_len,:] * filter[:,:,:,filt_index]).sum()
+    #     output[:,:,filt_index] += filter_bias[filt_index]
     return output
 
 # max-feature-map 2/1
