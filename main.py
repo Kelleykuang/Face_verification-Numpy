@@ -5,6 +5,7 @@ import glob
 import re
 import pickle
 import time
+import logging
 
 image_width = 128
 image_height = 128
@@ -21,20 +22,27 @@ def traindata_loader(path):
     # print(imlist[0].shape)
     imlist = glob.glob(path)
     rawImageArray = np.zeros((len(imlist), image_height, image_width), dtype=np.double)
-    
+    # people_names = {"Aaron_Peirsol"}
     people_names = []
     for i in range(len(imlist)):
         image = imlist[i]
         raw_image = io.imread(image, as_gray=True)
         rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
         people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[28:]) 
-        people_names.append(people_name.group(0)[:-1])
+        people_names.append(people_name.group(0)[:-1]) 
+        # people_names.add(people_name.group(0)[:-1]) 
     data_label = pd.get_dummies(people_names).to_numpy()
+
+    # print(rawImageArray.shape)
+    # print(data_label.shape)  # FIXME 
+    
     return rawImageArray, data_label
 
-# convolve with stride=1 and padding=0
-# (l, w, h), (fl, fw, h, n), (n) -> (l-fl+1, w-fw+1, n)
 def conv(data_in, filter, filter_bias):
+    '''
+      ## convolve with stride=1 and padding=0
+      (l, w, h), (fl, fw, h, n), (n) -> (l-fl+1, w-fw+1, n)
+    '''
     assert len(data_in.shape) == 3 and len(filter.shape) == 4 and len(filter_bias.shape) == 1
     assert data_in.shape[2] == filter.shape[2]    # must share the same height
     assert filter.shape[3] == filter_bias.shape[0]  # each conv kernel has a bias
@@ -58,9 +66,11 @@ def conv(data_in, filter, filter_bias):
     #     output[:,:,filt_index] += filter_bias[filt_index]
     return output
 
-# max-feature-map 2/1
-# (l, w, h) -> (l, w, h/2)
 def mfm(data_in):
+    '''
+    ## max-feature-map 2/1
+    (l, w, h) -> (l, w, h/2)  
+    '''
     assert len(data_in.shape) == 3
     assert data_in.shape[2]%2 == 0
     input_len, input_width, input_height = data_in.shape
@@ -71,18 +81,23 @@ def mfm(data_in):
     assert output.shape == (input_len, input_width, input_height//2)
     return output
 
-# max-pooling with 2*2 filter size and stride=2
-# (l, w, h) -> (l/2, w/2, h)
 def pool(data_in):
+    '''
+    ## max-pooling with 2*2 filter size and stride=2
+    (l, w, h) -> (l/2, w/2, h)
+    '''
+
     assert len(data_in.shape) == 3
     assert data_in.shape[0]%2 == 0 and data_in.shape[1]%2 == 0 
-    output = measure.block_reduce(data_in, (2,2,1), func=np.max)
+    output = measure.block_reduce(data_in, (2,2,1), func=np.max) #FIXME (1,2,2)?
     assert output.shape == (data_in.shape[0]//2, data_in.shape[1]//2, data_in.shape[2])
     return output
 
-# pad the first 2 dimension of data_in
-# (l, w, h), n -> (n+l+n, n+w+n, h)
 def padding(data_in, pad_size):
+    '''
+    ## pad the first 2 dimension of data_in
+     (l, w, h), n -> (n+l+n, n+w+n, h)
+    '''
     assert len(data_in.shape) == 2 or len(data_in.shape) == 3
     assert pad_size > 0
     if len(data_in.shape) == 2:
@@ -93,9 +108,11 @@ def padding(data_in, pad_size):
         output[pad_size:-pad_size,pad_size:-pad_size,:] = data_in
     return output
 
-# fully-connected layer
-# ndarray, (w, node_num), (node_num) -> (node_num)
 def fc(data_in, weights, bias):
+    '''
+    ## fully-connected layer
+    ndarray, (w, node_num), (node_num) -> (node_num)
+    '''
     data = data_in.flatten()
     assert data.shape[0] == weights.shape[0]
     assert weights.shape[1] == bias.shape[0]
@@ -105,9 +122,11 @@ def fc(data_in, weights, bias):
         output[i] = (weights[:,i] * data).sum() + bias[i]
     return output
 
-# max-feature-map for fully-connected layer, 2/1
-# (node_num) -> (node_num/2)
 def mfm_fc(data_in):
+    '''
+    ## max-feature-map for fully-connected layer, 2/1
+    (node_num) -> (node_num/2)
+    '''
     assert len(data_in.shape) == 1
     assert data_in.shape[0]%2 == 0
     node_num = data_in.shape[0]
@@ -120,7 +139,7 @@ def mfm_fc(data_in):
 
 class LightCNN_9(object):
     def __init__(self, path=None):
-        if path != None:
+        if path != None:    
             file = open(path, 'rb')
             data = file.read()
             file.close()
@@ -146,7 +165,9 @@ class LightCNN_9(object):
             self.conv5_bias =np.zeros((256), dtype=np.double)
             self.fc_weights = np.random.randn(8*8*128, 512)
             self.fc_bias = np.zeros((512), dtype=np.double)
+        
         return
+    
     def forward(self, data):
         time1 = time.time()
         pad1 = padding(data, 2)
@@ -204,8 +225,10 @@ class LightCNN_9(object):
 
 
 if __name__ == "__main__":
-    path = 'LFW_dataset/*/*/*.jpg'
+    path = './LFW_dataset/*/*/*.jpg'
     train_data, train_label = traindata_loader(path)
+    logging.info("Data loading finished.")
     model = LightCNN_9()
+
     print(model.forward(train_data[0]))
     
