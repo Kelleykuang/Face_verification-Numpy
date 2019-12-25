@@ -163,9 +163,10 @@ class LightCNN_9(object):
             self.conv5a_bias = np.zeros((256), dtype=np.double)
             self.conv5_kernel = np.random.randn(3, 3, 128, 256)*np.sqrt(1/(3*3*128))
             self.conv5_bias =np.zeros((256), dtype=np.double)
-            self.fc_weights = np.random.randn(8*8*128, 512)
-            self.fc_bias = np.zeros((512), dtype=np.double)
-        
+            self.fc1_weights = np.random.randn(8*8*128, 512)
+            self.fc1_bias = np.zeros((512), dtype=np.double)
+            self.fc2_weights = np.random.randn(256, 3095)
+            self.fc2_bias = np.zeros((3095), dtype=np.double)
         return
     
     def forward(self, data):
@@ -205,7 +206,7 @@ class LightCNN_9(object):
         
         pool4 = pool(mfm5)
 
-        fc1 = fc(pool4, self.fc_weights, self.fc_bias)
+        fc1 = fc(pool4, self.fc1_weights, self.fc1_bias)
         mfm_fc1 = mfm_fc(fc1)
 
         time2 = time.time()
@@ -213,7 +214,45 @@ class LightCNN_9(object):
         return mfm_fc1
 
     def train(self, data, label, epoch, min_batch_size, eta):
+        def rotate_filter(filter):
+            return np.fliplr(np.flipud(filter))
+
+        def SGD():
+            pass
+        def update_batch():
+            pass
+
+        def get_derivative_softmax(fc2_output, label_vec):
+            '''
+            fc2_output: (3095,1)
+            return (3095,1)
+            '''
+            return fc2_output - label_vec
+
+        def get_derivative_fc(input_vec, fc_weights, bp_gradient):
+            '''
+            y = Wx + b
+            bp_gradient: 从后续layer传来的梯度 (n, 1)
+            '''
+            dW = np.matmul(bp_gradient,input_vec.transpose())
+            db = bp_gradient
+            dx = fc_weights.transpose()
+            return dW,db,dx
+            
+        def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output):
+            '''
+            '''
+            dW = conv(input_img, bp_gradient, 0) 
+            dx = conv(padding(conv_output,filter.shape(0)-1), rotate_filter(filter), 0)
+            db = bp_gradient.sum(axis = 1)
+            return dW,db,dx      
+
+        def get_derivative_pool():
+            pass
+        def get_derivative_mfm():
+            pass
         return
+        
     def test(self, data, label):
         return
     def save(self):
@@ -225,10 +264,11 @@ class LightCNN_9(object):
 
 
 if __name__ == "__main__":
-    path = './LFW_dataset/*/*/*.jpg'
+    # path = './LFW_dataset/*/*/*.jpg'
+    path = './test_image/*/*/*.jpg'
     train_data, train_label = traindata_loader(path)
-    logging.info("Data loading finished.")
+    print("Data loading finished.")
     model = LightCNN_9()
 
-    print(model.forward(train_data[0]))
+    # print(model.forward(train_data[0]))
     
