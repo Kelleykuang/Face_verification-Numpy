@@ -303,13 +303,14 @@ class LightCNN_9(object):
             fc2: input_vec: (256,) bp_gradient: (3095,), fc_weights:(256,3095)
             '''
             dw = np.matmul(input_vec[:,None],bp_gradient[:,None].transpose())
+            dw = np.clip(dw,-10,10)
             # print(dw.shape)
             assert dw.shape == fc_weights.shape
             db = bp_gradient
             db = db[:,None]
             assert db.shape == fc_bias[:,None].shape
             dx = np.matmul(fc_weights, bp_gradient[:,None])
-            assert dx.shape == (256,1)
+            # assert dx.shape == (256,1)
             return dw,db,dx
         
         def get_derivate_mfm_fc1(location, bp_gradient):
@@ -333,6 +334,7 @@ class LightCNN_9(object):
             '''
             # print(bp_gradient.shape)
             dw = np.matmul(input_vec[:,None],bp_gradient.transpose())
+            dw = np.clip(dw,-10,10)
             # print(dw.shape)
             # print(fc_weights.shape)
             assert dw.shape == fc_weights.shape
@@ -358,7 +360,7 @@ class LightCNN_9(object):
             for i in range(bp_gradient.shape[-1]):
                 tmp = bp_gradient[:,:,i]
                 tmp_filter = np.stack([tmp] * input_img.shape[-1],axis=-1)[:,:,:,None]
-                dw[:,:,:,i] = conv(input_img, tmp_filter, tmp_bias)
+                dw[:,:,:,i] = np.clip(conv(input_img, tmp_filter, tmp_bias),-10,10)
                   
             # print(tmp.shape)
             # print(tmp_filter.shape) # (16,16,128)
@@ -391,7 +393,8 @@ class LightCNN_9(object):
             for i in range(bp_gradient.shape[-1]):
                 tmp = bp_gradient[:,:,i]
                 tmp_filter = np.stack([tmp] * input_img.shape[-1],axis=-1)[:,:,:,None]
-                dw[:,:,:,i] = conv(input_img, tmp_filter, tmp_bias)          
+                dw[:,:,:,i] = np.clip(conv(input_img, tmp_filter, tmp_bias),-10,10)      
+
             assert dw.shape == filter.shape
             db = np.sum(np.sum(bp_gradient,axis = 1),axis=0)[:None]
             assert db.shape == filter_bias.shape
@@ -464,6 +467,7 @@ class LightCNN_9(object):
             mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
 
             fc2 = fc(mfm_fc1, self.fcout_weights, self.fcout_bias)
+            # fc2 = fc(fc1, self.fcout_weights, self.fcout_bias)
             # print(fc2)
 
             softmax_output = softmax(fc2)
@@ -479,71 +483,76 @@ class LightCNN_9(object):
 
             g_fc2_w, g_fc2_b, g_fc2_x = get_derivative_fcout(mfm_fc1,self.fcout_weights,self.fcout_bias,g_softmax)
             # print(g_fc2_w)/
-            self.fcout_weights -= 0.0001*g_fc2_w
-            self.fcout_bias -= 0.0001*g_fc2_b[:,0]
+            # self.fcout_weights -= 0.0001*g_fc2_w
+            # self.fcout_bias -= 0.0001*g_fc2_b[:,0]
             # # # print(g_fc2_x.shape)x
             g_mfm_fc1 = get_derivate_mfm_fc1(mfm_fc1_location, g_fc2_x)
     
             g_fc1_w, g_fc1_b, g_fc1_x = get_derivative_fc(pool4.flatten(), self.fc_weights, self.fc_bias, g_mfm_fc1)
-            self.fc_weights -= 0.00001*g_fc1_w
-            self.fc_bias -= 0.00001*g_fc1_b[:,0]
+            # self.fc_weights -= 0.00001*g_fc1_w
+            # self.fc_bias -= 0.00001*g_fc1_b[:,0]
 
-            # g_pool4 = get_derivative_pool(pool4_location, g_fc1_x, pool4)
+            g_pool4 = get_derivative_pool(pool4_location, g_fc1_x, pool4)
             
-            # g_mfm5 = get_derivative_mfm( mfm5_location, g_pool4)
+            g_mfm5 = get_derivative_mfm( mfm5_location, g_pool4)
             # g_mfm5: (16,16,128) padding(mfm5a,1): (17,17,256)
-            # g_conv5_w, g_conv5_b, g_conv5_x = get_derivative_conv(padding(mfm5a,1),self.conv5_kernel, self.conv5_bias, g_mfm5,conv5)
+            g_conv5_w, g_conv5_b, g_conv5_x = get_derivative_conv(padding(mfm5a,1),self.conv5_kernel, self.conv5_bias, g_mfm5,conv5)
             # self.conv5_kernel -= 0.00001*g_conv5_w
             # self.conv5_bias -= 0.00001*g_conv5_b
 
             
-            # g_mfm5a = get_derivative_mfm( mfm5a_location, g_conv5_x)
-            # g_conv5a_w, g_conv5a_b, g_conv5a_x = get_derivative_conv(mfm4,self.conv5a_kernel, self.conv5a_bias, g_mfm5a,conv5a)
-            
+            g_mfm5a = get_derivative_mfm( mfm5a_location, g_conv5_x)
+            g_conv5a_w, g_conv5a_b, g_conv5a_x = get_derivative_conv(mfm4,self.conv5a_kernel, self.conv5a_bias, g_mfm5a,conv5a)
+            # self.conv5a_kernel -= 0.00001*g_conv5a_w
+            # self.conv5a_bias -= 0.00001*g_conv5a_b
             # #
-            # g_mfm4 = get_derivative_mfm( mfm4_location, g_conv5a_x)
-            # g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
-            # g_mfm4a = get_derivative_mfm( mfm4a_location, g_conv4_x)
-            # g_conv4a_w, g_conv4a_b, g_conv4a_x = get_derivative_conv(pool3,self.conv4a_kernel, self.conv4a_bias, g_mfm4a,conv4a)
+            g_mfm4 = get_derivative_mfm( mfm4_location, g_conv5a_x)
+            g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
+            # self.conv4_kernel -= 0.00001*g_conv4_w
+            # self.conv4_bias -= 0.00001*g_conv4_b
+            g_mfm4a = get_derivative_mfm( mfm4a_location, g_conv4_x)
+            g_conv4a_w, g_conv4a_b, g_conv4a_x = get_derivative_conv(pool3,self.conv4a_kernel, self.conv4a_bias, g_mfm4a,conv4a)
         
-            # g_pool3 = get_derivative_pool(pool3_location, g_conv4a_x,pool3)
+            # self.conv4a_kernel -= 0.00001*g_conv4a_w
+            # self.conv4a_bias -= 0.00001*g_conv4a_b
+            g_pool3 = get_derivative_pool(pool3_location, g_conv4a_x,pool3)
             
-            # #
-            # g_mfm3 = get_derivative_mfm( mfm3_location, g_pool3)
-            # g_conv3_w, g_conv3_b, g_conv3_x = get_derivative_conv(padding(mfm3a,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
-            # g_mfm3a = get_derivative_mfm( mfm3a_location, g_conv3_x)
-            # g_conv3a_w, g_conv3a_b, g_conv3a_x = get_derivative_conv(pool2,self.conv3a_kernel, self.conv3a_bias, g_mfm3a,conv3a)
+            #
+            g_mfm3 = get_derivative_mfm( mfm3_location, g_pool3)
+            g_conv3_w, g_conv3_b, g_conv3_x = get_derivative_conv(padding(mfm3a,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
+            g_mfm3a = get_derivative_mfm( mfm3a_location, g_conv3_x)
+            g_conv3a_w, g_conv3a_b, g_conv3a_x = get_derivative_conv(pool2,self.conv3a_kernel, self.conv3a_bias, g_mfm3a,conv3a)
         
-            # g_pool2 = get_derivative_pool(pool2_location, g_conv3a_x,pool2)
+            g_pool2 = get_derivative_pool(pool2_location, g_conv3a_x,pool2)
 
-            # #
-            # g_mfm2 = get_derivative_mfm( mfm2_location, g_pool2)
-            # g_conv2_w, g_conv2_b, g_conv2_x = get_derivative_conv(padding(mfm2a,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
-            # g_mfm2a = get_derivative_mfm( mfm2a_location, g_conv2_x)
-            # g_conv2a_w, g_conv2a_b, g_conv2a_x = get_derivative_conv(pool1,self.conv2a_kernel, self.conv2a_bias, g_mfm2a,conv2a)
+            #
+            g_mfm2 = get_derivative_mfm( mfm2_location, g_pool2)
+            g_conv2_w, g_conv2_b, g_conv2_x = get_derivative_conv(padding(mfm2a,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
+            g_mfm2a = get_derivative_mfm( mfm2a_location, g_conv2_x)
+            g_conv2a_w, g_conv2a_b, g_conv2a_x = get_derivative_conv(pool1,self.conv2a_kernel, self.conv2a_bias, g_mfm2a,conv2a)
         
-            # g_pool1 = get_derivative_pool(pool1_location, g_conv2a_x,pool1)
+            g_pool1 = get_derivative_pool(pool1_location, g_conv2a_x,pool1)
 
-            # g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
-            # g_conv1_w, g_conv1_b= get_derivative_conv1(data,self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
-            # time2 = time.time()
-            # print("bw_time:", time2 - time1)
-            # # gradient_fc2 = get_derivative_fc
+            g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
+            g_conv1_w, g_conv1_b= get_derivative_conv1(data,self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
+            time2 = time.time()
+            print("bw_time:", time2 - time1)
+            # gradient_fc2 = get_derivative_fc
             
-            # g_conv_w = [ g_conv1_w,g_conv2_w, g_conv3_w, g_conv4_w, g_conv5_w ]
-            # g_conv_b = [ g_conv1_b,g_conv2_b, g_conv3_b, g_conv4_b, g_conv5_b ]
+            g_conv_w = [ g_conv1_w,g_conv2_w, g_conv3_w, g_conv4_w, g_conv5_w ]
+            g_conv_b = [ g_conv1_b,g_conv2_b, g_conv3_b, g_conv4_b, g_conv5_b ]
 
-            # g_conva_w = [  g_conv2a_w, g_conv3a_w, g_conv4a_w, g_conv5a_w ]
-            # g_conva_b = [  g_conv2a_b, g_conv3a_b, g_conv4a_b, g_conv5a_b ]
+            g_conva_w = [  g_conv2a_w, g_conv3a_w, g_conv4a_w, g_conv5a_w ]
+            g_conva_b = [  g_conv2a_b, g_conv3a_b, g_conv4a_b, g_conv5a_b ]
             
-            # g_fc_w = [g_fc1_w, g_fc2_w]
-            # g_fc_b = [g_fc1_b, g_fc2_b]
+            g_fc_w = [g_fc1_w, g_fc2_w]
+            g_fc_b = [g_fc1_b, g_fc2_b]
 
-            # return g_conv_w, g_conv_b, g_conva_w, g_conva_b, g_fc_w, g_fc_b
+            return g_conv_w, g_conv_b, g_conva_w, g_conva_b, g_fc_w, g_fc_b
         
         for i in range(50):
-            backprob(data,label)
-            # update_batch(data,label,1,0.00001)
+            # backprob(data,label)
+            update_batch(data,label,1,0.0001)
 
     def test(self, data, label):
         return
