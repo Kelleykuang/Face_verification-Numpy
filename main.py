@@ -29,13 +29,8 @@ def traindata_loader(path):
         raw_image = io.imread(image, as_gray=True)
         rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
         people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[28:]) 
-        people_names.append(people_name.group(0)[:-1]) 
-        # people_names.add(people_name.group(0)[:-1]) 
-    data_label = pd.get_dummies(people_names).to_numpy()
-
-    # print(rawImageArray.shape)
-    # print(data_label.shape)  # FIXME 
-    
+        people_names.append(people_name.group(0)[:-1])  
+    data_label = pd.get_dummies(people_names).to_numpy()    
     return rawImageArray, data_label
 
 def conv(data_in, filter, filter_bias):
@@ -78,8 +73,12 @@ def mfm(data_in):
     split[0] = data_in[:,:,:input_height//2]
     split[1] = data_in[:,:,input_height//2:]
     output = np.amax(split, axis=0)
+    repmax = np.zeros(data_in.shape, dtype=np.double)
+    repmax[:,:,:input_height//2] = repmax[:,:,input_height//2:] = output
+    location = (repmax == data_in)
     assert output.shape == (input_len, input_width, input_height//2)
-    return output
+    assert location.shape == data_in.shape
+    return output, location
 
 def pool(data_in):
     '''
@@ -89,9 +88,21 @@ def pool(data_in):
 
     assert len(data_in.shape) == 3
     assert data_in.shape[0]%2 == 0 and data_in.shape[1]%2 == 0 
-    output = measure.block_reduce(data_in, (2,2,1), func=np.max) #FIXME (1,2,2)?
+    output = measure.block_reduce(data_in, (2,2,1), func=np.max)
+    repmax = np.repeat(np.repeat(output, 2, axis=0), 2, axis=1)
+    location = (repmax == data_in)
+    # location[location==0] = 1
+    # input_len, input_width, input_height = data_in.shape
+    # pool_len = input_len//2
+    # pool_width = input_width//2
+    # data_reshaped = data_in.reshape(pool_len, 2, pool_width, 2, input_height)
+    # # feature_reshaped = feature.reshape(pool_h, feature_h//pool_h, pool_w, feature_w//pool_w, feature_ch)
+    # out = data_reshaped.max(axis=1).max(axis=2)
+    # out_location_c = data_reshaped.max(axis=1).argmax(axis=2)
+    # out_location_r = data_reshaped.max(axis=3).argmax(axis=1)
     assert output.shape == (data_in.shape[0]//2, data_in.shape[1]//2, data_in.shape[2])
-    return output
+    assert location.shape == data_in.shape
+    return output, location
 
 def padding(data_in, pad_size):
     '''
@@ -117,9 +128,11 @@ def fc(data_in, weights, bias):
     assert data.shape[0] == weights.shape[0]
     assert weights.shape[1] == bias.shape[0]
     weight_num, node_num = weights.shape
-    output = np.zeros((node_num), dtype=np.double)
-    for i in range(node_num):
-        output[i] = (weights[:,i] * data).sum() + bias[i]
+    # output = np.zeros((node_num), dtype=np.double)
+    # for i in range(node_num):
+    #     output[i] = np.matmul(data, weights) + bias[i]
+    output = np.matmul(data, weights) + bias
+    assert output.shape == (node_num,)
     return output
 
 def mfm_fc(data_in):
@@ -134,8 +147,12 @@ def mfm_fc(data_in):
     split[0] = data_in[:node_num//2]
     split[1] = data_in[node_num//2:]
     output = np.amax(split, axis=0)
+    repmax = np.zeros(data_in.shape, dtype=np.double)
+    repmax[:node_num//2] = repmax[node_num//2:] = output
+    location = (repmax == data_in)
     assert output.shape == (node_num//2,)
-    return output
+    assert location.shape == data_in.shape
+    return output, location
 
 class LightCNN_9(object):
     def __init__(self, path=None):
@@ -165,7 +182,8 @@ class LightCNN_9(object):
             self.conv5_bias =np.zeros((256), dtype=np.double)
             self.fc_weights = np.random.randn(8*8*128, 512)
             self.fc_bias = np.zeros((512), dtype=np.double)
-        
+            self.fcout_weights = np.random.randn(256, 3095)
+            self.fcout_bias = np.zeros((3095), dtype=np.double)
         return
     
     def forward(self, data):
@@ -175,42 +193,43 @@ class LightCNN_9(object):
         conv_input[:,:,0] = pad1
 
         conv1 = conv(conv_input, self.conv1_kernel, self.conv1_bias)
-        mfm1 = mfm(conv1)
+        mfm1, mfm1_location = mfm(conv1)
 
-        pool1 = pool(mfm1)
+        pool1, pool1_location = pool(mfm1)
 
         conv2a = conv(pool1, self.conv2a_kernel, self.conv2a_bias)
-        mfm2a = mfm(conv2a)
+        mfm2a, mfm2a_location = mfm(conv2a)
         conv2 = conv(padding(mfm2a,1), self.conv2_kernel, self.conv2_bias)
-        mfm2 = mfm(conv2)
+        mfm2, mfm2_location = mfm(conv2)
 
-        pool2 = pool(mfm2)
+        pool2, pool2_location = pool(mfm2)
 
         conv3a = conv(pool2, self.conv3a_kernel, self.conv3a_bias)
-        mfm3a = mfm(conv3a)
+        mfm3a, mfm3a_location = mfm(conv3a)
         conv3 = conv(padding(mfm3a, 1), self.conv3_kernel, self.conv3_bias)
-        mfm3 = mfm(conv3)
+        mfm3, mfm3_location = mfm(conv3)
 
-        pool3 = pool(mfm3)
+        pool3, pool3_location = pool(mfm3)
 
         conv4a = conv(pool3, self.conv4a_kernel, self.conv4a_bias)
-        mfm4a = mfm(conv4a)
+        mfm4a, mfm4a_location = mfm(conv4a)
         conv4 = conv(padding(mfm4a, 1), self.conv4_kernel, self.conv4_bias)
-        mfm4 = mfm(conv4)
+        mfm4, mfm4_location = mfm(conv4)
 
         conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
-        mfm5a = mfm(conv5a)
+        mfm5a, mfm5a_location = mfm(conv5a)
         conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
-        mfm5 = mfm(conv5)
+        mfm5, mfm5_location = mfm(conv5)
         
-        pool4 = pool(mfm5)
+        pool4, pool4_loaction = pool(mfm5)
 
         fc1 = fc(pool4, self.fc_weights, self.fc_bias)
-        mfm_fc1 = mfm_fc(fc1)
+        mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
 
+        fc2 = fc(mfm_fc1, self.fcout_weights, self.fcout_bias)
         time2 = time.time()
         print(time2-time1)
-        return mfm_fc1
+        return fc2.shape, fc2
 
     def train(self, data, label, epoch, min_batch_size, eta):
         return
