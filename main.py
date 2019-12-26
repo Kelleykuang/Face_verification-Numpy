@@ -22,7 +22,6 @@ def traindata_loader(path):
     # print(imlist[0].shape)
     imlist = glob.glob(path)
     rawImageArray = np.zeros((len(imlist), image_height, image_width), dtype=np.double)
-    # people_names = {"Aaron_Peirsol"}
     people_names = []
     for i in range(len(imlist)):
         image = imlist[i]
@@ -154,6 +153,31 @@ def mfm_fc(data_in):
     assert location.shape == data_in.shape
     return output, location
 
+def softmax(data_in):
+    '''
+    ## softmax layer
+    (3095) -> (3095)
+    '''
+    m = np.amax(data_in)
+    data_in -=m
+    # data_in = data_in / m
+    # print(data_in)
+    # return data_in - np.log()
+    print(data_in)
+    e = np.exp(data_in)
+    s = np.sum(e)
+    # print(e)
+    # print(s)
+    return e / s
+
+def cross_entropy(data_in,label_vec):
+    '''
+    ## cross entropy as loss function. 
+    (3095) -> 1
+    '''
+    l = np.log(data_in)
+    return -np.dot(l, label_vec)
+
 class LightCNN_9(object):
     def __init__(self, path=None):
         if path != None:    
@@ -180,10 +204,17 @@ class LightCNN_9(object):
             self.conv5a_bias = np.zeros((256), dtype=np.double)
             self.conv5_kernel = np.random.randn(3, 3, 128, 256)*np.sqrt(1/(3*3*128))
             self.conv5_bias =np.zeros((256), dtype=np.double)
-            self.fc_weights = np.random.randn(8*8*128, 512)
+            self.fc_weights = np.random.randn(8*8*128, 512)*np.sqrt(2/(8*8*128+512))
             self.fc_bias = np.zeros((512), dtype=np.double)
-            self.fcout_weights = np.random.randn(256, 3095)
+            self.fcout_weights = np.random.randn(256, 3095)*np.sqrt(2/(256+3095))
             self.fcout_bias = np.zeros((3095), dtype=np.double)
+            self.conv_kernel = [self.conv1_kernel,self.conv2_kernel,self.conv3_kernel,self.conv4_kernel,self.conv5_kernel]  
+            self.conva_kernel = [self.conv2a_kernel,self.conv3a_kernel,self.conv4a_kernel,self.conv5a_kernel]  
+            self.conv_bias = [self.conv1_bias,self.conv2_bias,self.conv3_bias,self.conv4_bias,self.conv5_bias]
+            self.conva_bias = [self.conv2a_bias,self.conv3a_bias,self.conv4a_bias,self.conv5a_bias]
+            self.fc_w = [self.fc_weights,self.fcout_weights]
+            self.fc_b = [self.fc_bias,self.fcout_bias]
+
         return
     
     def forward(self, data):
@@ -221,7 +252,7 @@ class LightCNN_9(object):
         conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
         mfm5, mfm5_location = mfm(conv5)
         
-        pool4, pool4_loaction = pool(mfm5)
+        pool4, pool4_location = pool(mfm5)
 
         fc1 = fc(pool4, self.fc_weights, self.fc_bias)
         mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
@@ -232,13 +263,31 @@ class LightCNN_9(object):
         return fc2.shape, fc2
 
     def train(self, data, label, epoch, min_batch_size, eta):
-        def rotate_filter(filter):
-            return np.fliplr(np.flipud(filter))
-
         def SGD():
+
             pass
-        def update_batch():
-            pass
+        def update_batch(data, label,min_batch_size, eta):
+            # for i in min_batch_size:
+            g_conv_w, g_conv_b, g_conva_w, g_conva_b, g_fc_w, g_fc_b = backprob(data,label)
+
+            
+            for w, g_w in zip(self.conv_kernel,g_conv_w):
+                # print(g_w)
+                w -= eta* g_w
+            for w, g_w in zip(self.conva_kernel,g_conva_w):
+                w -= eta* g_w
+
+            for b, g_b in zip(self.conv_bias,g_conv_b):
+                b -= eta* g_b
+            for b, g_b in zip(self.conva_bias,g_conva_b):
+                b -= eta* g_b
+
+            for w, g_w in zip(self.fc_w,g_fc_w):
+                w - eta* g_w
+            for b, g_b in zip(self.fc_b,g_fc_b):
+                b - eta* g_b[:,0]
+            
+            return
 
         def get_derivative_softmax(fc2_output, label_vec):
             '''
@@ -247,30 +296,255 @@ class LightCNN_9(object):
             '''
             return fc2_output - label_vec
 
-        def get_derivative_fc(input_vec, fc_weights, bp_gradient):
+        def get_derivative_fcout(input_vec, fc_weights, fc_bias, bp_gradient):
             '''
             y = Wx + b
             bp_gradient: 从后续layer传来的梯度 (n, 1)
+            fc2: input_vec: (256,) bp_gradient: (3095,), fc_weights:(256,3095)
             '''
-            dW = np.matmul(bp_gradient,input_vec.transpose())
+            dw = np.matmul(input_vec[:,None],bp_gradient[:,None].transpose())
+            # print(dw.shape)
+            assert dw.shape == fc_weights.shape
             db = bp_gradient
-            dx = fc_weights.transpose()
-            return dW,db,dx
-            
-        def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output):
-            '''
-            '''
-            dW = conv(input_img, bp_gradient, 0) 
-            dx = conv(padding(conv_output,filter.shape(0)-1), rotate_filter(filter), 0)
-            db = bp_gradient.sum(axis = 1)
-            return dW,db,dx      
-
-        def get_derivative_pool():
-            pass
-        def get_derivative_mfm():
-            pass
-        return
+            db = db[:,None]
+            assert db.shape == fc_bias[:,None].shape
+            dx = np.matmul(fc_weights, bp_gradient[:,None])
+            assert dx.shape == (256,1)
+            return dw,db,dx
         
+        def get_derivate_mfm_fc1(location, bp_gradient):
+            '''
+            input_vec: (512,)
+            bp_gradient: (256,1)
+            '''
+            tmp = np.vstack((bp_gradient,bp_gradient))
+            # print(tmp.shape)
+            assert tmp.shape[0] == 512
+            # print(location.shape)
+            output = tmp * location[:,None].astype(int) 
+            assert output.shape == (512,1)
+            return output
+
+        def get_derivative_fc(input_vec, fc_weights, fc_bias, bp_gradient):
+            '''
+            y = Wx + b
+            bp_gradient: 从后续layer传来的梯度 (n, 1)
+            fc1: input_vec: (8*8*128,) bp_gradient: (512,1), fc_weights:(8*8*128,512)
+            '''
+            # print(bp_gradient.shape)
+            dw = np.matmul(input_vec[:,None],bp_gradient.transpose())
+            # print(dw.shape)
+            # print(fc_weights.shape)
+            assert dw.shape == fc_weights.shape
+            db = bp_gradient
+            assert db.shape == fc_bias[:,None].shape
+            dx = np.matmul(fc_weights, bp_gradient)
+            assert dx.shape == (8*8*128,1)
+            return dw,db,dx
+            
+        def rot180(conv_filters):
+            '''
+            conv_filters: (fl, fw, h, n) -> (fl, fw, h, n)
+            '''
+            rot180_filters = np.zeros((conv_filters.shape))
+            for filter_num in range(conv_filters.shape[-1]):
+                for img_channal in range(conv_filters.shape[-2]):
+                    rot180_filters[:,:,img_channal,filter_num] = np.flipud(np.fliplr(conv_filters[:,:,img_channal,filter_num]))
+            return rot180_filters
+        
+        def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output):
+            dw = np.zeros(filter.shape)
+            tmp_bias = np.zeros(1)
+            for i in range(bp_gradient.shape[-1]):
+                tmp = bp_gradient[:,:,i]
+                tmp_filter = np.stack([tmp] * input_img.shape[-1],axis=-1)[:,:,:,None]
+                dw[:,:,:,i] = conv(input_img, tmp_filter, tmp_bias)
+                  
+            # print(tmp.shape)
+            # print(tmp_filter.shape) # (16,16,128)
+            # print(tmp_bias.shape)
+            # print(input_img)
+            # print(con.shape)
+            # print(dw.shape) 
+            assert dw.shape == filter.shape
+            # 16+15=31 31-16+1 = 16
+            tmp_bias = np.zeros(input_img.shape[-1])
+            # print(tmp_bias.shape)
+            rot_filter = rot180(filter).swapaxes(-2,-1)
+            # print(rot_filter.shape)
+            if filter.shape[0]!= 1:
+                dx = conv(padding(conv_output,filter.shape[0]-1), rot_filter, tmp_bias)[1:-1,1:-1,:]
+            else:
+                dx = conv(conv_output, rot_filter, tmp_bias)
+            # print(dx.shape)
+            # print(input_img.shape)
+            # assert dx.shape == input_img.shape
+            db = np.sum(np.sum(bp_gradient,axis = 1),axis=0)[:None]
+            # print(db.shape)
+            assert db.shape == filter_bias.shape
+            return dw,db,dx      
+
+        def get_derivative_conv1(input_img, filter, filter_bias, bp_gradient, conv_output):
+            dw = np.zeros(filter.shape)
+            input_img = input_img[:,:,None] # (128,128) -> (128,128,1)
+            tmp_bias = np.zeros(1)
+            for i in range(bp_gradient.shape[-1]):
+                tmp = bp_gradient[:,:,i]
+                tmp_filter = np.stack([tmp] * input_img.shape[-1],axis=-1)[:,:,:,None]
+                dw[:,:,:,i] = conv(input_img, tmp_filter, tmp_bias)          
+            assert dw.shape == filter.shape
+            db = np.sum(np.sum(bp_gradient,axis = 1),axis=0)[:None]
+            assert db.shape == filter_bias.shape
+            return dw,db  
+
+        def get_derivative_pool(location, bp_gradient,pool_output):
+            '''
+            bp_gradient: (8*8*128,1)
+            '''
+            # print(bp_gradient.shape)
+            bp_gradient = bp_gradient.reshape(pool_output.shape)
+            bp_gradient = bp_gradient.repeat(2,axis=0).repeat(2,axis=1)
+            # print(location.shape)
+            output = bp_gradient * location
+            # assert output.shape == 
+            # print(output)
+            return output
+            # output = bp_gradient
+
+        def get_derivative_mfm(location, bp_gradient):
+            '''
+            location
+            '''
+            # print(location.shape)
+            tmp = np.concatenate((bp_gradient,bp_gradient),axis=-1)
+            # print(tmp.shape)
+            output = tmp * location.astype(int) 
+            # print(output.shape)
+            return output
+
+        def backprob(data, label):
+
+            # forward
+            pad1 = padding(data, 2)
+            conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
+            conv_input[:,:,0] = pad1
+
+            conv1 = conv(conv_input, self.conv1_kernel, self.conv1_bias)
+            mfm1, mfm1_location = mfm(conv1)
+
+            pool1, pool1_location = pool(mfm1)
+
+            conv2a = conv(pool1, self.conv2a_kernel, self.conv2a_bias)
+            mfm2a, mfm2a_location = mfm(conv2a)
+            conv2 = conv(padding(mfm2a,1), self.conv2_kernel, self.conv2_bias)
+            mfm2, mfm2_location = mfm(conv2)
+
+            pool2, pool2_location = pool(mfm2)
+
+            conv3a = conv(pool2, self.conv3a_kernel, self.conv3a_bias)
+            mfm3a, mfm3a_location = mfm(conv3a)
+            conv3 = conv(padding(mfm3a, 1), self.conv3_kernel, self.conv3_bias)
+            mfm3, mfm3_location = mfm(conv3)
+
+            pool3, pool3_location = pool(mfm3)
+
+            conv4a = conv(pool3, self.conv4a_kernel, self.conv4a_bias)
+            mfm4a, mfm4a_location = mfm(conv4a)
+            conv4 = conv(padding(mfm4a, 1), self.conv4_kernel, self.conv4_bias)
+            mfm4, mfm4_location = mfm(conv4)
+
+            conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
+            mfm5a, mfm5a_location = mfm(conv5a)
+            conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
+            mfm5, mfm5_location = mfm(conv5)
+            
+            pool4, pool4_location = pool(mfm5)
+
+            fc1 = fc(pool4, self.fc_weights, self.fc_bias)
+            mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
+
+            fc2 = fc(mfm_fc1, self.fcout_weights, self.fcout_bias)
+            # print(fc2)
+
+            softmax_output = softmax(fc2)
+            loss = cross_entropy(softmax_output,label)
+            print("loss:", loss)
+
+            time1 = time.time()
+            g_softmax = get_derivative_softmax(fc2,label)
+            # print(gradient_softmax)
+            # print(fc2.shape)
+            # print(mfm_fc1.shape)
+            # print(self.fcout_weights.shape)
+
+            g_fc2_w, g_fc2_b, g_fc2_x = get_derivative_fcout(mfm_fc1,self.fcout_weights,self.fcout_bias,g_softmax)
+            # print(g_fc2_w)/
+            self.fcout_weights -= 0.0001*g_fc2_w
+            self.fcout_bias -= 0.0001*g_fc2_b[:,0]
+            # # # print(g_fc2_x.shape)x
+            g_mfm_fc1 = get_derivate_mfm_fc1(mfm_fc1_location, g_fc2_x)
+    
+            g_fc1_w, g_fc1_b, g_fc1_x = get_derivative_fc(pool4.flatten(), self.fc_weights, self.fc_bias, g_mfm_fc1)
+            self.fc_weights -= 0.00001*g_fc1_w
+            self.fc_bias -= 0.00001*g_fc1_b[:,0]
+
+            # g_pool4 = get_derivative_pool(pool4_location, g_fc1_x, pool4)
+            
+            # g_mfm5 = get_derivative_mfm( mfm5_location, g_pool4)
+            # g_mfm5: (16,16,128) padding(mfm5a,1): (17,17,256)
+            # g_conv5_w, g_conv5_b, g_conv5_x = get_derivative_conv(padding(mfm5a,1),self.conv5_kernel, self.conv5_bias, g_mfm5,conv5)
+            # self.conv5_kernel -= 0.00001*g_conv5_w
+            # self.conv5_bias -= 0.00001*g_conv5_b
+
+            
+            # g_mfm5a = get_derivative_mfm( mfm5a_location, g_conv5_x)
+            # g_conv5a_w, g_conv5a_b, g_conv5a_x = get_derivative_conv(mfm4,self.conv5a_kernel, self.conv5a_bias, g_mfm5a,conv5a)
+            
+            # #
+            # g_mfm4 = get_derivative_mfm( mfm4_location, g_conv5a_x)
+            # g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
+            # g_mfm4a = get_derivative_mfm( mfm4a_location, g_conv4_x)
+            # g_conv4a_w, g_conv4a_b, g_conv4a_x = get_derivative_conv(pool3,self.conv4a_kernel, self.conv4a_bias, g_mfm4a,conv4a)
+        
+            # g_pool3 = get_derivative_pool(pool3_location, g_conv4a_x,pool3)
+            
+            # #
+            # g_mfm3 = get_derivative_mfm( mfm3_location, g_pool3)
+            # g_conv3_w, g_conv3_b, g_conv3_x = get_derivative_conv(padding(mfm3a,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
+            # g_mfm3a = get_derivative_mfm( mfm3a_location, g_conv3_x)
+            # g_conv3a_w, g_conv3a_b, g_conv3a_x = get_derivative_conv(pool2,self.conv3a_kernel, self.conv3a_bias, g_mfm3a,conv3a)
+        
+            # g_pool2 = get_derivative_pool(pool2_location, g_conv3a_x,pool2)
+
+            # #
+            # g_mfm2 = get_derivative_mfm( mfm2_location, g_pool2)
+            # g_conv2_w, g_conv2_b, g_conv2_x = get_derivative_conv(padding(mfm2a,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
+            # g_mfm2a = get_derivative_mfm( mfm2a_location, g_conv2_x)
+            # g_conv2a_w, g_conv2a_b, g_conv2a_x = get_derivative_conv(pool1,self.conv2a_kernel, self.conv2a_bias, g_mfm2a,conv2a)
+        
+            # g_pool1 = get_derivative_pool(pool1_location, g_conv2a_x,pool1)
+
+            # g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
+            # g_conv1_w, g_conv1_b= get_derivative_conv1(data,self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
+            # time2 = time.time()
+            # print("bw_time:", time2 - time1)
+            # # gradient_fc2 = get_derivative_fc
+            
+            # g_conv_w = [ g_conv1_w,g_conv2_w, g_conv3_w, g_conv4_w, g_conv5_w ]
+            # g_conv_b = [ g_conv1_b,g_conv2_b, g_conv3_b, g_conv4_b, g_conv5_b ]
+
+            # g_conva_w = [  g_conv2a_w, g_conv3a_w, g_conv4a_w, g_conv5a_w ]
+            # g_conva_b = [  g_conv2a_b, g_conv3a_b, g_conv4a_b, g_conv5a_b ]
+            
+            # g_fc_w = [g_fc1_w, g_fc2_w]
+            # g_fc_b = [g_fc1_b, g_fc2_b]
+
+            # return g_conv_w, g_conv_b, g_conva_w, g_conva_b, g_fc_w, g_fc_b
+        
+        for i in range(50):
+            backprob(data,label)
+            # update_batch(data,label,1,0.00001)
+
     def test(self, data, label):
         return
     def save(self):
@@ -288,5 +562,13 @@ if __name__ == "__main__":
     print("Data loading finished.")
     model = LightCNN_9()
 
+    # print(train_label)
+    # print(train_label.shape)
+    a = np.zeros((8,3095),dtype=int)
+    for i in range(train_label.shape[0]):
+        a[i,:train_label[i].shape[0]] = train_label[i]
+    # print(a
+        
+    model.train(train_data[0],a[0],1,1,1)
     # print(model.forward(train_data[0]))
     
