@@ -45,11 +45,14 @@ def conv(data_in, filter, filter_bias):
     feature_len = input_len - filter_len + 1
     feature_width = input_width - filter_width + 1
     feature_height = filter_num
-    output = np.zeros((feature_len, feature_width, feature_height), dtype=np.double)
-    img2col = np.zeros((feature_len, feature_width, filter_len*filter_width*filter_height), dtype=np.double)
-    for i in range(feature_len):
-        for j in range(feature_width):
-            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_width,:].flatten()
+    #output = np.zeros((feature_len, feature_width, feature_height), dtype=np.double)
+    # print(data_in.strides)
+    # img2col = np.zeros((feature_len, feature_width, filter_len*filter_width*filter_height), dtype=np.double)
+    img2col = np.lib.stride_tricks.as_strided(data_in, shape=(feature_len, feature_width, filter_len, filter_width, filter_height), strides=(8*input_height*input_width, 8*input_height, 8*input_height*input_width, 8*input_height, 8))
+    img2col = np.reshape(img2col, (feature_len, feature_width, filter_len*filter_width*filter_height))
+    # for i in range(feature_len):
+    #     for j in range(feature_width):
+    #         img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_width,:].flatten()
     filter = np.reshape(filter, (filter_len*filter_width*filter_height, filter_num))
     output = np.add(np.matmul(img2col, filter), filter_bias)
     # for filt_index in range(feature_height):
@@ -586,8 +589,8 @@ class LightCNN_9(object):
 
             g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
             g_conv1_w, g_conv1_b= get_derivative_conv1(padding(data, 2),self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
-            time2 = time.time()
-            print("bw_time:", time2 - time1)
+            time_back2 = time.time()
+            print("bw_time:", time_back2-time_back1)
             
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w, g_conv5a_w, g_conv5_w ]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b, g_conv5a_b, g_conv5_b ]
