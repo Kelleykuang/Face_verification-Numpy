@@ -49,10 +49,13 @@ def conv(data_in, filter, filter_bias):
     img2col = np.zeros((feature_len, feature_width, filter_len*filter_width*filter_height), dtype=np.double)
     for i in range(feature_len):
         for j in range(feature_width):
-            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_len,:].flatten()
-    for filt_index in range(feature_height):
-        filt = filter[:,:,:,filt_index].flatten()
-        output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
+            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_width,:].flatten()
+    filter = np.reshape(filter, (filter_len*filter_width*filter_height, filter_num))
+    output = np.add(np.matmul(img2col, filter), filter_bias)
+    # for filt_index in range(feature_height):
+    #     filt = filter[:,:,:,filt_index].flatten()
+    #     output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
+    assert output.shape == (feature_len, feature_width, feature_height)
     # for filt_index in range(feature_height):
     #     for i in range(feature_len):
     #         for j in range(feature_width):
@@ -475,6 +478,7 @@ class LightCNN_9(object):
         def backprob(data, label):
 
             # forward
+            time_for1 = time.time()
             pad1 = padding(data, 2)
             conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
             conv_input[:,:,0] = pad1
@@ -517,10 +521,12 @@ class LightCNN_9(object):
 
             softmax_output = softmax(fc2)
             loss = cross_entropy(softmax_output,label)
-            print("loss:", loss)
-
+            # print("loss:", loss)
+            time_for2 = time.time()
+            print("forward_time:"+str(time_for2-time_for1))
             # ====================================================== backpropogation =============================================
-            time1 = time.time()
+            # time1 = time.time()
+            time_back1 = time.time()
             g_softmax = get_derivative_softmax(softmax_output,label)
 
             g_fc2_w, g_fc2_b, g_fc2_x = get_derivative_fcout(mfm_fc1,self.fcout_weights,self.fcout_bias,g_softmax)
@@ -616,8 +622,8 @@ class LightCNN_9(object):
 
 
 if __name__ == "__main__":
-    # path = './LFW_dataset/*/*/*.jpg'
-    path = './test_image/*/*/*.jpg'
+    path = './LFW_dataset/*/*/*.jpg'
+    #path = './test_image/*/*/*.jpg'
     train_data, train_label = traindata_loader(path)
     print("Data loading finished.")
     model = LightCNN_9()
@@ -625,10 +631,12 @@ if __name__ == "__main__":
     # print(train_label)
     # print(train_label.shape)
     # print(train_label.shape)
-    a = np.zeros((train_label.shape[0],3095),dtype=int)
-    for i in range(train_label.shape[0]):
-        a[i,:train_label.shape[1]] = train_label[i]
+    # a = np.zeros((train_label.shape[0],3095),dtype=int)
+    # for i in range(train_label.shape[0]):
+    #     a[i,:train_label.shape[1]] = train_label[i]
 
-    model.train(train_data[0],a[0],10,1,0.0001)
+    # model.train(train_data[0],a[0],10,1,0.0001)
+    model.train(train_data,train_label,10,1,0.0001)
+
     # print(model.forward(train_data[0]))
     
