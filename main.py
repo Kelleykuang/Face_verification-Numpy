@@ -400,12 +400,11 @@ class LightCNN_9(object):
             bp_gradient_filter_size = bp_gradient.shape[0]
             feature_size = input_img_size - bp_gradient_filter_size + 1
             input_img2col = np.zeros((feature_size, feature_size, input_img_channal,bp_gradient_filter_size*bp_gradient_filter_size))
-            for k in range(input_img_channal):
-                for i in range(feature_size):
-                    for j in range(feature_size):
-                        input_img2col[i,j,k,:] = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size,k].flatten()
-            # a = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size,:]
-            # a.resize()
+
+            for i in range(feature_size):
+                for j in range(feature_size):
+                    tmp = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size,:]
+                    input_img2col[i,j,:,:] = tmp.reshape((bp_gradient_filter_size*bp_gradient_filter_size, input_img_channal)).T
 
             bp_gradient_filter = bp_gradient.reshape(( bp_gradient_filter_size* bp_gradient_filter_size, bp_gradient.shape[-1]))
             dw = np.matmul(input_img2col,bp_gradient_filter)
@@ -518,7 +517,7 @@ class LightCNN_9(object):
 
             softmax_output = softmax(fc2)
             loss = cross_entropy(softmax_output,label)
-            # print("loss:", loss)
+            print("loss:", loss)
 
             # ====================================================== backpropogation =============================================
             time1 = time.time()
@@ -591,10 +590,20 @@ class LightCNN_9(object):
 
             return g_conv_w, g_conv_b, g_fc_w, g_fc_b, loss
         
-        # for i in range(500):
-        #     # backprob(data,label)
+        for i in range(500):
+            eta = 0.0001
+            total_conv_w, total_conv_b, total_fc_w,total_fc_b,loss = backprob(data,label)
+            for w, g_w in zip(self.conv_kernel,total_conv_w):
+                w -= eta* g_w 
+            for b, g_b in zip(self.conv_bias,total_conv_b):
+                b -= eta* g_b
+
+            for w, g_w in zip(self.fc_w,total_fc_w):
+                w - eta* g_w 
+            for b, g_b in zip(self.fc_b,total_fc_b):
+                b - eta* g_b[:,0] 
         #     update_batch(data,label,1,0.0001)
-        SGD(data, label, None, None, epoch, min_batch_size, eta)
+        # SGD(data, label, None, None, epoch, min_batch_size, eta)
 
     def test(self, data, label):
         return
@@ -620,6 +629,6 @@ if __name__ == "__main__":
     for i in range(train_label.shape[0]):
         a[i,:train_label.shape[1]] = train_label[i]
 
-    model.train(train_data,a,10,1,0.0001)
+    model.train(train_data[0],a[0],10,1,0.0001)
     # print(model.forward(train_data[0]))
     
