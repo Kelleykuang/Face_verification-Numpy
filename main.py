@@ -49,7 +49,7 @@ def conv(data_in, filter, filter_bias):
     img2col = np.zeros((feature_len, feature_width, filter_len*filter_width*filter_height), dtype=np.double)
     for i in range(feature_len):
         for j in range(feature_width):
-            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_len,:].flatten()
+            img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_width,:].flatten()
     for filt_index in range(feature_height):
         filt = filter[:,:,:,filt_index].flatten()
         output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
