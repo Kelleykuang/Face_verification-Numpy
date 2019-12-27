@@ -50,9 +50,12 @@ def conv(data_in, filter, filter_bias):
     for i in range(feature_len):
         for j in range(feature_width):
             img2col[i,j,:] = data_in[i:i+filter_len,j:j+filter_width,:].flatten()
-    for filt_index in range(feature_height):
-        filt = filter[:,:,:,filt_index].flatten()
-        output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
+    filter = np.reshape(filter, (filter_len*filter_width*filter_height, filter_num))
+    output = np.add(np.matmul(img2col, filter), filter_bias)
+    # for filt_index in range(feature_height):
+    #     filt = filter[:,:,:,filt_index].flatten()
+    #     output[:,:,filt_index] = np.matmul(img2col, filt) + filter_bias[filt_index]
+    assert output.shape == (feature_len, feature_width, feature_height)
     # for filt_index in range(feature_height):
     #     for i in range(feature_len):
     #         for j in range(feature_width):
@@ -386,10 +389,11 @@ class LightCNN_9(object):
             '''
             conv_filters: (fl, fw, h, n) -> (fl, fw, h, n)
             '''
-            rot180_filters = np.zeros((conv_filters.shape))
-            for filter_num in range(conv_filters.shape[-1]):
-                for img_channal in range(conv_filters.shape[-2]):
-                    rot180_filters[:,:,img_channal,filter_num] = np.flipud(np.fliplr(conv_filters[:,:,img_channal,filter_num]))
+            # rot180_filters = np.zeros((conv_filters.shape))
+            rot180_filters = np.flip(np.flip(conv_filters, 0),1)
+            # for filter_num in range(conv_filters.shape[-1]):
+                # for img_channal in range(conv_filters.shape[-2]):
+                    # rot180_filters[:,:,img_channal,filter_num] = np.flipud(np.fliplr(conv_filters[:,:,img_channal,filter_num]))
             return rot180_filters
         
         def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output):
@@ -480,6 +484,7 @@ class LightCNN_9(object):
         def backprob(data, label):
 
             # forward
+            time_for1 = time.time()
             pad1 = padding(data, 2)
             conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
             conv_input[:,:,0] = pad1
@@ -523,9 +528,11 @@ class LightCNN_9(object):
             softmax_output = softmax(fc2)
             loss = cross_entropy(softmax_output,label)
             # print("loss:", loss)
-
+            time_for2 = time.time()
+            print("forward_time:"+str(time_for2-time_for1))
             # ====================================================== backpropogation =============================================
             # time1 = time.time()
+            time_back1 = time.time()
             g_softmax = get_derivative_softmax(softmax_output,label)
 
             g_fc2_w, g_fc2_b, g_fc2_x = get_derivative_fcout(mfm_fc1,self.fcout_weights,self.fcout_bias,g_softmax)
@@ -586,7 +593,8 @@ class LightCNN_9(object):
             g_conv1_w, g_conv1_b= get_derivative_conv1(data,self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
             # time2 = time.time()
             # print("bw_time:", time2 - time1)
-            
+            time_back2 = time.time()
+            print("backward time:"+str(time_back2-time_back1))
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w, g_conv5a_w, g_conv5_w ]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b, g_conv5a_b, g_conv5_b ]
             
@@ -611,8 +619,8 @@ class LightCNN_9(object):
 
 
 if __name__ == "__main__":
-    # path = './LFW_dataset/*/*/*.jpg'
-    path = './test_image/*/*/*.jpg'
+    path = './LFW_dataset/*/*/*.jpg'
+    #path = './test_image/*/*/*.jpg'
     train_data, train_label = traindata_loader(path)
     print("Data loading finished.")
     model = LightCNN_9()
@@ -620,10 +628,10 @@ if __name__ == "__main__":
     # print(train_label)
     # print(train_label.shape)
     # print(train_label.shape)
-    a = np.zeros((train_label.shape[0],3095),dtype=int)
-    for i in range(train_label.shape[0]):
-        a[i,:train_label.shape[1]] = train_label[i]
+    # a = np.zeros((train_label.shape[0],3095),dtype=int)
+    # for i in range(train_label.shape[0]):
+    #     a[i,:train_label.shape[1]] = train_label[i]
 
-    model.train(train_data,a,2,4,0.0001)
+    model.train(train_data,train_label,2,4,0.0001)
     # print(model.forward(train_data[0]))
     
