@@ -635,8 +635,8 @@ if __name__ == "__main__":
     # for i in range(train_label.shape[0]):
     #     a[i,:train_label.shape[1]] = train_label[i]
 
-    # model.train(train_data[0],a[0],10,1,0.0001)
-    model.train(train_data,train_label,10,1,0.0001)
+    model.train(train_data[0],a[0],10,1,0.0001)
+    # model.train(train_data,train_label,10,1,0.0001)
 
     # print(model.forward(train_data[0]))
     
