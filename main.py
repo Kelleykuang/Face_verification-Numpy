@@ -386,10 +386,7 @@ class LightCNN_9(object):
             '''
             conv_filters: (fl, fw, h, n) -> (fl, fw, h, n)
             '''
-            rot180_filters = np.zeros((conv_filters.shape))
-            for filter_num in range(conv_filters.shape[-1]):
-                for img_channal in range(conv_filters.shape[-2]):
-                    rot180_filters[:,:,img_channal,filter_num] = np.flipud(np.fliplr(conv_filters[:,:,img_channal,filter_num]))
+            rot180_filters = np.flip(np.flip(conv_filters, 0), 1)
             return rot180_filters
         
         def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output):
@@ -407,12 +404,12 @@ class LightCNN_9(object):
                 for i in range(feature_size):
                     for j in range(feature_size):
                         input_img2col[i,j,k,:] = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size,k].flatten()
-            
-            for i in range(output_channal):
-                bp_gradient_filter = bp_gradient[:,:,i].flatten()
-                for j in range(input_img_channal):
-                    dw[:,:,j,i] = np.matmul(input_img2col[:,:,j,:], bp_gradient_filter)
+            # a = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size,:]
+            # a.resize()
 
+            bp_gradient_filter = bp_gradient.reshape(( bp_gradient_filter_size* bp_gradient_filter_size, bp_gradient.shape[-1]))
+            dw = np.matmul(input_img2col,bp_gradient_filter)
+            
             assert dw.shape == filter.shape
 
             tmp_bias = np.zeros(input_img.shape[-1])
@@ -438,14 +435,13 @@ class LightCNN_9(object):
             dw = np.zeros(filter.shape)            
             bp_gradient_filter_size = bp_gradient.shape[0]
             feature_size = input_img_size - bp_gradient_filter_size + 1
-            input_img2col = np.zeros((feature_size, feature_size, bp_gradient_filter_size*bp_gradient_filter_size))
+            input_img2col = np.zeros((feature_size, feature_size, 1, bp_gradient_filter_size*bp_gradient_filter_size))
             for i in range(feature_size):
                 for j in range(feature_size):
-                    input_img2col[i,j,:] = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size].flatten()
+                    input_img2col[i,j,0,:] = input_img[i:i+ bp_gradient_filter_size,j:j+ bp_gradient_filter_size].flatten()
             
-            for i in range(output_channal):
-                bp_gradient_filter = bp_gradient[:,:,i].flatten()
-                dw[:,:,0,i] = np.matmul(input_img2col, bp_gradient_filter)
+            bp_gradient_filter = bp_gradient.reshape(( bp_gradient_filter_size* bp_gradient_filter_size, bp_gradient.shape[-1]))
+            dw = np.matmul(input_img2col,bp_gradient_filter)
 
             assert dw.shape == filter.shape
             db = np.sum(np.sum(bp_gradient,axis = 1),axis=0)[:None]
@@ -517,7 +513,7 @@ class LightCNN_9(object):
 
             fc1 = fc(pool4, self.fc_weights, self.fc_bias)
             mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
-# 
+
             fc2 = fc(mfm_fc1, self.fcout_weights, self.fcout_bias)
 
             softmax_output = softmax(fc2)
@@ -525,7 +521,7 @@ class LightCNN_9(object):
             # print("loss:", loss)
 
             # ====================================================== backpropogation =============================================
-            # time1 = time.time()
+            time1 = time.time()
             g_softmax = get_derivative_softmax(softmax_output,label)
 
             g_fc2_w, g_fc2_b, g_fc2_x = get_derivative_fcout(mfm_fc1,self.fcout_weights,self.fcout_bias,g_softmax)
@@ -583,9 +579,9 @@ class LightCNN_9(object):
             g_pool1 = get_derivative_pool(pool1_location, g_conv2a_x,pool1)
 
             g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
-            g_conv1_w, g_conv1_b= get_derivative_conv1(data,self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
-            # time2 = time.time()
-            # print("bw_time:", time2 - time1)
+            g_conv1_w, g_conv1_b= get_derivative_conv1(padding(data, 2),self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
+            time2 = time.time()
+            print("bw_time:", time2 - time1)
             
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w, g_conv5a_w, g_conv5_w ]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b, g_conv5a_b, g_conv5_b ]
@@ -624,6 +620,6 @@ if __name__ == "__main__":
     for i in range(train_label.shape[0]):
         a[i,:train_label.shape[1]] = train_label[i]
 
-    model.train(train_data,a,2,4,0.0001)
+    model.train(train_data,a,10,1,0.0001)
     # print(model.forward(train_data[0]))
     
