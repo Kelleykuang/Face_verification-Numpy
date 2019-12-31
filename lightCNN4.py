@@ -157,33 +157,23 @@ class LightCNN_9(object):
             file.close()
             self.__dict__ = pickle.loads(data)
         else:
-            self.conv1_kernel = np.random.randn(5, 5, 1, 96)*np.sqrt(1/(5*5*1))
+            self.conv1_kernel = np.random.randn(9, 9, 1, 96)*np.sqrt(1/(5*5*1))
             self.conv1_bias = np.zeros((96), dtype=np.double)
-            self.conv2a_kernel = np.random.randn(1, 1, 48, 96)*np.sqrt(1/(1*1*48))
-            self.conv2a_bias = np.zeros((96), dtype=np.double)
-            self.conv2_kernel = np.random.randn(3, 3, 48, 192)*np.sqrt(1/(3*3*48))
+            self.conv2_kernel = np.random.randn(5, 5, 48, 192)*np.sqrt(1/(3*3*48))
             self.conv2_bias = np.zeros((192), dtype=np.double)
-            self.conv3a_kernel = np.random.randn(1, 1, 96, 192)*np.sqrt(1/(1*1*96))
-            self.conv3a_bias = np.zeros((192), dtype=np.double)
-            self.conv3_kernel = np.random.randn(3, 3, 96, 384)*np.sqrt(1/(3*3*96))
-            self.conv3_bias = np.zeros((384), dtype=np.double)
-            self.conv4a_kernel = np.random.randn(1, 1, 192, 384)*np.sqrt(1/(1*1*192))
-            self.conv4a_bias = np.zeros((384), dtype=np.double)
-            self.conv4_kernel = np.random.randn(3, 3, 192, 256)*np.sqrt(1/(3*3*192))
-            self.conv4_bias = np.zeros((256), dtype=np.double)
-            self.conv5a_kernel = np.random.randn(1, 1, 128, 256)*np.sqrt(1/(1*1*128))
-            self.conv5a_bias = np.zeros((256), dtype=np.double)
-            self.conv5_kernel = np.random.randn(3, 3, 128, 256)*np.sqrt(1/(3*3*128))
-            self.conv5_bias =np.zeros((256), dtype=np.double)
-            self.fc_weights = np.random.randn(8*8*128, 512)*np.sqrt(2/(8*8*128+3095))
+            self.conv3_kernel = np.random.randn(5, 5, 96, 256)*np.sqrt(1/(3*3*96))
+            self.conv3_bias = np.zeros((256), dtype=np.double)
+            self.conv4_kernel = np.random.randn(4, 4, 128, 384)*np.sqrt(1/(3*3*192))
+            self.conv4_bias = np.zeros((384), dtype=np.double)
+            self.fc_weights = np.random.randn(5*5*192, 512)*np.sqrt(2/(8*8*128+3095))
             self.fc_bias = np.zeros((512), dtype=np.double)
             self.fcout_weights = np.random.randn(256, 3095)*np.sqrt(2/(256+3095))
             self.fcout_bias = np.zeros((3095), dtype=np.double)
 
-            self.conv_kernel = [self.conv1_kernel,self.conv2a_kernel,self.conv2_kernel,self.conv3a_kernel, \
-                                self.conv3_kernel,self.conv4a_kernel,self.conv4_kernel,self.conv5a_kernel, self.conv5_kernel]  
-            self.conv_bias = [self.conv1_bias,self.conv2a_bias,self.conv2_bias,self.conv3a_bias,\
-                            self.conv3_bias,self.conv4a_bias,self.conv4_bias,self.conv5a_bias,self.conv5_bias]
+            # self.conv_kernel = [self.conv1_kernel,self.conv2a_kernel,self.conv2_kernel,self.conv3a_kernel, \
+            #                     self.conv3_kernel,self.conv4a_kernel,self.conv4_kernel,self.conv5a_kernel, self.conv5_kernel]  
+            # self.conv_bias = [self.conv1_bias,self.conv2a_bias,self.conv2_bias,self.conv3a_bias,\
+            #                 self.conv3_bias,self.conv4a_bias,self.conv4_bias,self.conv5a_bias,self.conv5_bias]
             self.fc_w = [self.fc_weights,self.fcout_weights]
             self.fc_b = [self.fc_bias,self.fcout_bias]
 
@@ -192,21 +182,16 @@ class LightCNN_9(object):
     def forward(self, data):
         # forward
         time_for1 = time.time()
-        pad1 = padding(data, 2)
-        conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
-        conv_input[:,:,0] = pad1
-
+        # pad1 = padding(data, 2)
+        # conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
+        # conv_input[:,:,0] = pad1
+        conv_input = data
         conv1 = conv(conv_input, self.conv1_kernel, self.conv1_bias)
         mfm1, mfm1_location = mfm(conv1)
 
         pool1, pool1_location = pool(mfm1)
 
-        conv2a = conv(pool1, self.conv2a_kernel, self.conv2a_bias)
-        mfm2a, mfm2a_location = mfm(conv2a)
-        # TODO
-        mfm2a = mfm2a + pool1 
-
-        conv2 = conv(padding(mfm2a,1), self.conv2_kernel, self.conv2_bias)
+        conv2 = conv(pool1, self.conv2_kernel, self.conv2_bias)
         mfm2, mfm2_location = mfm(conv2)
 
         pool2, pool2_location = pool(mfm2)
