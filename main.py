@@ -6,6 +6,7 @@ import re
 import pickle
 import time
 import logging
+import os
 
 image_width = 128
 image_height = 128
@@ -16,9 +17,10 @@ def traindata_loader(path):
     people_names = []
     for i in range(len(imlist)):
         image = imlist[i]
+        #print(image)
         raw_image = io.imread(image, as_gray=True)
         rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
-        people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[65:]) 
+        people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[20:]) 
         people_names.append(people_name.group(0)[:-1])  
     data_label = pd.get_dummies(people_names).to_numpy()    
     return rawImageArray, data_label
@@ -191,7 +193,6 @@ class LightCNN_9(object):
     
     def forward(self, data):
         # forward
-        time_for1 = time.time()
         pad1 = padding(data, 2)
         conv_input = np.zeros((pad1.shape[0], pad1.shape[1], 1), dtype=np.double)
         conv_input[:,:,0] = pad1
@@ -204,9 +205,7 @@ class LightCNN_9(object):
         conv2a = conv(pool1, self.conv2a_kernel, self.conv2a_bias)
         mfm2a, mfm2a_location = mfm(conv2a)
         # TODO
-        mfm2a = mfm2a + pool1 
-
-        conv2 = conv(padding(mfm2a,1), self.conv2_kernel, self.conv2_bias)
+        conv2 = conv(padding( mfm2a + pool1,1), self.conv2_kernel, self.conv2_bias)
         mfm2, mfm2_location = mfm(conv2)
 
         pool2, pool2_location = pool(mfm2)
@@ -214,9 +213,7 @@ class LightCNN_9(object):
         conv3a = conv(pool2, self.conv3a_kernel, self.conv3a_bias)
         mfm3a, mfm3a_location = mfm(conv3a)
 
-        mfm3a = mfm3a + pool2
-
-        conv3 = conv(padding(mfm3a, 1), self.conv3_kernel, self.conv3_bias)
+        conv3 = conv(padding(mfm3a + pool2, 1), self.conv3_kernel, self.conv3_bias)
         mfm3, mfm3_location = mfm(conv3)
 
         pool3, pool3_location = pool(mfm3)
@@ -224,20 +221,18 @@ class LightCNN_9(object):
         conv4a = conv(pool3, self.conv4a_kernel, self.conv4a_bias)
         mfm4a, mfm4a_location = mfm(conv4a)
 
-        mfm4a = mfm4a + pool3 
-
-        conv4 = conv(padding(mfm4a, 1), self.conv4_kernel, self.conv4_bias)
+        conv4 = conv(padding(mfm4a + pool3, 1), self.conv4_kernel, self.conv4_bias)
         mfm4, mfm4_location = mfm(conv4)
 
-        conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
-        mfm5a, mfm5a_location = mfm(conv5a)
+        # conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
+        # mfm5a, mfm5a_location = mfm(conv5a)
 
-        mfm5a = mfm5a + mfm4
+        # mfm5a = mfm5a + mfm4
 
-        conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
-        mfm5, mfm5_location = mfm(conv5)
-        
-        pool4, pool4_location = pool(mfm5)
+        # conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
+        # mfm5, mfm5_location = mfm(conv5)
+            
+        pool4, pool4_location = pool(mfm4)
 
         fc1 = fc(pool4, self.fc_weights, self.fc_bias)
         mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
@@ -527,7 +522,7 @@ class LightCNN_9(object):
             loss = cross_entropy(softmax_output,label)
             # print("loss:", loss)
             time_for2 = time.time()
-            #print("forward_time:"+str(time_for2-time_for1))
+            print("forward_time:"+str(time_for2-time_for1))
             # ====================================================== backpropogation =============================================
             # time1 = time.time()
             time_back1 = time.time()
@@ -601,6 +596,7 @@ class LightCNN_9(object):
 
             # print("back:", time_back2 - time_back1)
             
+            print("backward_time:"+str(time_back2-time_back1))
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b]
             
@@ -625,41 +621,69 @@ class LightCNN_9(object):
             # update_batch(data,label,1,0.0001)
         SGD(data, label, None, None, epoch, min_batch_size, eta)
 
-    def test(self, data1, data2, label):
-        result = []
-        for image1, image2 in data1, data2:
-
-            predict1 = self.forward(image1)
-            predict2 = self.forward(image2)
-            cos_similarity = np.dot(predict1, predict2) / (np.dot(predict1, predict1) * np.dot(predict2, predict2))
-            if cos_similarity**2 >= 0.5:
-                result.append(1)
-            else:
-                result.append(0)
-
-        return result
-
-    def getF1(self, result, label):
+    def test(self, path_match, path_mismatch):
+        dirs = os.listdir(path_match)
         FP = 0
         FN = 0
         TP = 0
         TN = 0
-        for i in range(len(result)):
-            if result[i] == 1:
-                if label[i] == 1:
-                    TP +=1
-                else:
-                    FP +=1
-            elif result[i] == 0:
-                if label[i] == 1:
-                    FN +=1
-                else:
-                    TN +=1
-        precision = TP / (TP + FN) 
+        cos_thr = 0.7
+        dirs = os.listdir(path_match)
+        for dir in dirs:
+            files = os.listdir(os.path.join(path_match,dir))
+            #print(files)
+            image1 = io.imread(os.path.join(path_match,dir,files[0]), as_gray=True)
+            image1 = transform.resize(image1, (image_width, image_height))
+            predict1 = self.forward(image1)
+            #print(predict1)
+            image2 = io.imread(os.path.join(path_match,dir,files[1]), as_gray=True)
+            image2 = transform.resize(image2, (image_width, image_height))
+            predict2 = self.forward(image2)
+            #print(predict2)
+            cos = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
+            print(cos)
+            if cos >= cos_thr:
+                TP += 1
+            else:
+                FN += 1
+        dirs = os.listdir(path_mismatch)
+        print("mis:")
+        for dir in dirs:
+            files = os.listdir(os.path.join(path_mismatch,dir))
+            #print(files)
+            image1 = io.imread(os.path.join(path_mismatch,dir,files[0]), as_gray=True)
+            image1 = transform.resize(image1, (image_width, image_height))
+            predict1 = self.forward(image1)
+            #print(predict1)
+            image2 = io.imread(os.path.join(path_mismatch,dir,files[1]), as_gray=True)
+            image2 = transform.resize(image2, (image_width, image_height))
+            predict2 = self.forward(image2)
+            #print(predict2)
+            cos = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
+            print(cos)
+            if cos >= cos_thr:
+                FP += 1
+            else:
+                TN += 1
+        precision = TP / (TP + FP) 
         recall = TP / (TP + FN) 
-        F1 = 1 / (1/precision + 1/re)
-        print
-        return 
+        F1 = 2 / (1/precision + 1/recall)
+        print("precision:", precision)
+        print("recall:", recall)
+        print("F1:", F1)
+        # result = []
+        # for image1, image2 in data1, data2:
+
+        #     predict1 = self.forward(image1)
+        #     predict2 = self.forward(image2)
+        #     cos_similarity = np.dot(predict1, predict2) / (np.dot(predict1, predict1) * np.dot(predict2, predict2))
+        #     if cos_similarity**2 >= 0.5:
+        #         result.append(1)
+        #     else:
+        #         result.append(0)
+
+        # return result
+
     
     def save(self):
         file = open('LightCNN9_model.bin', 'wb')
@@ -667,22 +691,21 @@ class LightCNN_9(object):
         file.close()
         return
 
-
-
 if __name__ == "__main__":
     # path = 'D:/USTC_ML/大作业/Face_verification-Numpy/LFW_dataset/*/*/*.jpg'
     # path = './LFW/*/*/*.jpg'
-    path = 'D:/USTC_ML/大作业/Face_verification-Numpy/test_image/*/*/*.jpg'
+    path = './test_image/*/*/*.jpg'
     time1= time.time()
     train_data, train_label = traindata_loader(path)
     time2= time.time()
 
     print(f"Data loading finished.{time2 - time1}")
     model = LightCNN_9()
-
+    print(train_label.shape)
     a = np.zeros((train_label.shape[0],3095),dtype=int)
-    for i in range(train_label.shape[0]):
-        a[i,:train_label.shape[1]] = train_label[i]
+    a[:,:train_label.shape[1]] = train_label
+    # for i in range(train_label.shape[0]):
+    #     a[i,:train_label.shape[1]] = train_label[i]
         
     # print(a)
     # print(a)
