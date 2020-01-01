@@ -410,6 +410,18 @@ class LightCNN_9(object):
             assert db.shape == filter_bias.shape
             return dw,db,dx      
 
+        def get_derivative_conv2pool(input_img, filter, filter_bias, bp_gradient):
+            # 对w求导的原理是：将bp_gradient的每一层[:,:,i]作为新的filter 对input_img的每一层[:,:,j]进行卷积
+
+            tmp_bias = np.zeros(input_img.shape[-1])
+            rot_filter = rot180(filter).swapaxes(-2,-1)
+            if filter.shape[0]!= 1:
+                dx = conv(padding(bp_gradient,filter.shape[0]-1), rot_filter, tmp_bias)[1:-1,1:-1,:]
+            else:
+                dx = conv(bp_gradient, rot_filter, tmp_bias)
+
+            return dx      
+
         def get_derivative_conv1(input_img, filter, filter_bias, bp_gradient, conv_output):
             '''
             第一层卷积计算反向传播梯度时所用的函数
@@ -540,51 +552,54 @@ class LightCNN_9(object):
             # self.conv5a_bias -= 0.0001*g_conv5a_b
 
             # # # # #
+            time_conv4_begin = time.time()
             g_mfm4 = get_derivative_mfm( mfm4_location, g_pool4)
-            g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
-            g_conv4_w_po, g_conv4_b_po, g_conv4_x_po = get_derivative_conv(padding(pool3,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
+            g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a+pool3,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
+            g_conv4_x_po = get_derivative_conv2pool(padding(pool3,1),self.conv4_kernel, self.conv4_bias, g_mfm4)
 
-            g_conv4_w = g_conv4_w + g_conv4_w_po
-            g_conv4_b = g_conv4_b + g_conv4_b_po
+            # g_conv4_w = np.add(g_conv4_w, g_conv4_w_po)
+            # g_conv4_b = np.add(g_conv4_b, g_conv4_b_po)
 
             g_mfm4a = get_derivative_mfm( mfm4a_location, g_conv4_x)
             g_conv4a_w, g_conv4a_b, g_conv4a_x = get_derivative_conv(pool3,self.conv4a_kernel, self.conv4a_bias, g_mfm4a,conv4a)
+            time_conv4_end = time.time()
 
             g_pool3 = get_derivative_pool(pool3_location, g_conv4a_x + g_conv4_x_po, pool3)
-
+            
+            time_conv3_begin = time.time()
             # # #
             g_mfm3 = get_derivative_mfm( mfm3_location, g_pool3)
-            g_conv3_w, g_conv3_b, g_conv3_x = get_derivative_conv(padding(mfm3a,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
-            g_conv3_w_po, g_conv3_b_po, g_conv3_x_po = get_derivative_conv(padding(pool2,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
-
-            g_conv3_w = g_conv3_w + g_conv3_w_po
-            g_conv3_b = g_conv3_b + g_conv3_b_po
+            g_conv3_w, g_conv3_b, g_conv3_x = get_derivative_conv(padding(mfm3a+pool2,1),self.conv3_kernel, self.conv3_bias, g_mfm3,conv3)
+            g_conv3_x_po = get_derivative_conv2pool(padding(pool2,1),self.conv3_kernel, self.conv3_bias, g_mfm3)
 
             g_mfm3a = get_derivative_mfm( mfm3a_location, g_conv3_x)
             g_conv3a_w, g_conv3a_b, g_conv3a_x = get_derivative_conv(pool2,self.conv3a_kernel, self.conv3a_bias, g_mfm3a,conv3a)
+            time_conv3_end = time.time()
 
             g_pool2 = get_derivative_pool(pool2_location, g_conv3a_x+ g_conv3_x_po,pool2)
 
-            # g_conv3a_x = g_conv3a_x + g_conv3_x
-
-            # #
+            # # #
+            time_conv2_begin = time.time()
             g_mfm2 = get_derivative_mfm( mfm2_location, g_pool2)
-            g_conv2_w, g_conv2_b, g_conv2_x = get_derivative_conv(padding(mfm2a,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
-            g_conv2_w_po, g_conv2_b_po, g_conv2_x_po = get_derivative_conv(padding(pool1,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
-
-            g_conv2_w = g_conv2_w + g_conv2_w_po
-            g_conv2_b = g_conv2_b + g_conv2_b_po
+            g_conv2_w, g_conv2_b, g_conv2_x = get_derivative_conv(padding(mfm2a+pool1,1),self.conv2_kernel, self.conv2_bias, g_mfm2,conv2)
+            g_conv2_x_po = get_derivative_conv2pool(padding(pool1,1),self.conv2_kernel, self.conv2_bias, g_mfm2)
 
             g_mfm2a = get_derivative_mfm( mfm2a_location, g_conv2_x)
             g_conv2a_w, g_conv2a_b, g_conv2a_x = get_derivative_conv(pool1,self.conv2a_kernel, self.conv2a_bias, g_mfm2a,conv2a)
-        
+            time_conv2_end = time.time()
+
             g_pool1 = get_derivative_pool(pool1_location, g_conv2a_x + g_conv2_x_po ,pool1)
 
-            g_conv2a_x = g_conv2a_x + g_conv2_x
-
+            time_conv1_begin = time.time()
             g_mfm1 = get_derivative_mfm( mfm1_location, g_pool1)
             g_conv1_w, g_conv1_b= get_derivative_conv1(padding(data, 2),self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
             time_back2 = time.time()
+            # print("conv4:",time_conv4_end - time_conv4_begin)
+            # print("conv3:",time_conv3_end - time_conv3_begin)
+            # print("conv2:",time_conv2_end - time_conv2_begin)
+            # print("conv1:",time_back2 - time_conv1_begin)
+
+            # print("back:", time_back2 - time_back1)
             
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b]
@@ -671,6 +686,6 @@ if __name__ == "__main__":
         
     # print(a)
     # print(a)
-    model.train(train_data,a,10,16,0.001)
+    model.train(train_data,a,10,32,0.04)
 
     
