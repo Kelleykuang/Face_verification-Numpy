@@ -296,7 +296,7 @@ class LightCNN_9(object):
             batch_num = 0
 
             for j in range(epochs):
-
+                time1 = time.time()
                 batch_total_loss = 0.0
                 batch_data = [train_image[k:k+batch_size] for k in range(0, len(train_image), batch_size)]
                 batch_label = [train_label[k:k+batch_size] for k in range(0, len(train_label), batch_size)]
@@ -312,7 +312,8 @@ class LightCNN_9(object):
                 print(f"=============epoch{j}: average loss={batch_total_loss / batch_num}==========")
                 self.save()
                 batch_num = 0
-
+                time2 = time.time()
+                print("epoch time:", time2-time1)
 
                     # print("\rEpoch{0}:{1}/{2}".format(j+1, batch_num*mini_batch_size, len(train_image)), end=' ')
                 
@@ -510,7 +511,7 @@ class LightCNN_9(object):
             loss = cross_entropy(softmax_output,label)
             # print("loss:", loss)
             time_for2 = time.time()
-            print("forward_time:"+str(time_for2-time_for1))
+            #print("forward_time:"+str(time_for2-time_for1))
             # ====================================================== backpropogation =============================================
             # time1 = time.time()
             time_back1 = time.time()
@@ -581,7 +582,7 @@ class LightCNN_9(object):
             g_conv1_w, g_conv1_b= get_derivative_conv1(padding(data, 2),self.conv1_kernel, self.conv1_bias, g_mfm1,conv1)
             time_back2 = time.time()
             
-            print("backward_time:"+str(time_back2-time_back1))
+            #print("backward_time:"+str(time_back2-time_back1))
             g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w]
             g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b]
             
@@ -685,7 +686,7 @@ if __name__ == "__main__":
     time2= time.time()
 
     print(f"Data loading finished.{time2 - time1}")
-    model = LightCNN_9()
+    model = LightCNN_9('LightCNN9_model.bin')
     print(train_label.shape)
     a = np.zeros((train_label.shape[0],3095),dtype=int)
     a[:,:train_label.shape[1]] = train_label
@@ -694,7 +695,7 @@ if __name__ == "__main__":
         
     # print(a)
     # print(a)
-    model.train(train_data,a,50,4,0.002)
+    model.train(train_data,a,40,64,0.025)
     path_match = './test_image/match_pairs'
     path_mismatch = './test_image/mismatch_pairs'
     model.test(path_match, path_mismatch)
