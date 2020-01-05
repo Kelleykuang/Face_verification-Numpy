@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from skimage import io, transform, measure
+import scipy.stats
 import glob
 import re
 import pickle
@@ -11,19 +12,36 @@ import os
 image_width = 128
 image_height = 128
 
-def traindata_loader(path):
-    imlist = glob.glob(path)
-    rawImageArray = np.zeros((len(imlist), image_height, image_width), dtype=np.double)
+def traindata_loader(path1, path2, path3):
+    imlist1 = glob.glob(path1)
+    imlist2 = glob.glob(path2)
+    imlist3= glob.glob(path3)
+    print(len(imlist1), len(imlist2), len(imlist3))
+    rawImageArray = np.zeros((len(imlist1)+len(imlist2)+len(imlist3), image_height, image_width), dtype=np.double)
     people_names = []
-    for i in range(len(imlist)):
-        image = imlist[i]
+    for i in range(len(imlist1)):
+        image = imlist1[i]
         #print(image)
         raw_image = io.imread(image, as_gray=True)
         rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
         people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[20:]) 
         people_names.append(people_name.group(0)[:-1])  
-    data_label = pd.get_dummies(people_names).to_numpy()    
-    return rawImageArray, data_label
+    for i in range(len(imlist1), len(imlist1)+len(imlist2)):
+        image = imlist2[i-len(imlist1)]
+        #print(image)
+        raw_image = io.imread(image, as_gray=True)
+        rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
+        people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[20:]) 
+        people_names.append(people_name.group(0)[:-1])  
+    for i in range(len(imlist1)+len(imlist2), len(imlist1)+len(imlist2)+len(imlist3)):
+        image = imlist3[i-len(imlist1)-len(imlist2)]
+        #print(image)
+        raw_image = io.imread(image, as_gray=True)
+        rawImageArray[i] = transform.resize(raw_image, (image_width, image_height))
+        people_name = re.search(r'(?<=\\)[a-zA-Z_-]+', image[20:]) 
+        people_names.append(people_name.group(0)[:-1])  
+    data_label = pd.get_dummies(people_names).to_numpy()
+    return rawImageArray[len(imlist1):], data_label[len(imlist1):]
 
 def conv(data_in, filter, filter_bias):
     '''
@@ -628,9 +646,9 @@ class LightCNN_9(object):
         FN = 0
         TP = 0
         TN = 0
-        cos_thr = 0.7
-        dirs = os.listdir(path_match)
-        for dir in dirs:
+        sim_thr = 0.0001
+        dir1 = os.listdir(path_match)
+        for dir in dir1:
             files = os.listdir(os.path.join(path_match,dir))
             #print(files)
             image1 = io.imread(os.path.join(path_match,dir,files[0]), as_gray=True)
@@ -641,15 +659,16 @@ class LightCNN_9(object):
             image2 = transform.resize(image2, (image_width, image_height))
             predict2 = self.forward(image2)
             #print(predict2)
-            cos = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
-            print(cos)
-            if cos >= cos_thr:
+            similarity = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
+            #similarity = np.corrcoef(predict1, predict2)[0,1]
+            print(similarity)
+            if similarity >= sim_thr:
                 TP += 1
             else:
                 FN += 1
-        dirs = os.listdir(path_mismatch)
+        dir2 = os.listdir(path_mismatch)
         print("mis:")
-        for dir in dirs:
+        for dir in dir2[:len(dir1)]:
             files = os.listdir(os.path.join(path_mismatch,dir))
             #print(files)
             image1 = io.imread(os.path.join(path_mismatch,dir,files[0]), as_gray=True)
@@ -659,10 +678,12 @@ class LightCNN_9(object):
             image2 = io.imread(os.path.join(path_mismatch,dir,files[1]), as_gray=True)
             image2 = transform.resize(image2, (image_width, image_height))
             predict2 = self.forward(image2)
-            #print(predict2)
-            cos = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
-            print(cos)
-            if cos >= cos_thr:
+            # print(predict2)
+            # similarity = np.corrcoef(predict1, predict2)[0,1]
+            # print(similarity)
+            similarity = np.inner(predict1,predict2) / (np.linalg.norm(predict1) * np.linalg.norm(predict2))
+            print(similarity)
+            if similarity >= sim_thr:
                 FP += 1
             else:
                 TN += 1
@@ -695,24 +716,22 @@ class LightCNN_9(object):
 if __name__ == "__main__":
     # path = 'D:/USTC_ML/大作业/Face_verification-Numpy/LFW_dataset/*/*/*.jpg'
     # path = './LFW/*/*/*.jpg'
-    path = './test_image/*/*/*.jpg'
+    path1 = './train_image1/*/*/*.jpg'
+    path2 = './train_image2/*/*/*.jpg'
+    path3 = './train_image3/*/*/*.jpg'
     time1= time.time()
-    train_data, train_label = traindata_loader(path)
+    #train_data, train_label = traindata_loader(path1, path2, path3)
     time2= time.time()
 
     print(f"Data loading finished.{time2 - time1}")
     model = LightCNN_9('LightCNN9_model.bin')
-    print(train_label.shape)
-    a = np.zeros((train_label.shape[0],3095),dtype=int)
-    a[:,:train_label.shape[1]] = train_label
-    # for i in range(train_label.shape[0]):
-    #     a[i,:train_label.shape[1]] = train_label[i]
-        
-    # print(a)
-    # print(a)
-    model.train(train_data,a,40,64,0.025)
-    path_match = './test_image/match_pairs'
-    path_mismatch = './test_image/mismatch_pairs'
+    # print(train_label.shape)
+    # a = np.zeros((train_label.shape[0],3095),dtype=int)
+    # a[:,:train_label.shape[1]] = train_label
+
+    # model.train(train_data,a,4,64,0.0005)
+    path_match = './test_dataset/match_pairs'
+    path_mismatch = './test_dataset/mismatch_pairs'
     model.test(path_match, path_mismatch)
 
     

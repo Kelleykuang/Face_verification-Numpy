@@ -1,3 +1,7 @@
 LFW_dataset/
 test_image/
+test_dataset/
+train_image1/
+train_image2/
+train_image3/
 *.bin
