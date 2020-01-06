@@ -23,7 +23,7 @@ def conv(data_in, filter, filter_bias):
 
 def mfm(data_in):
     '''
-    ## max-feature-map 2/1
+    max-feature-map 2/1
     (l, w, h) -> (l, w, h/2)  
     '''
     assert len(data_in.shape) == 3
@@ -42,7 +42,7 @@ def mfm(data_in):
 
 def pool(data_in):
     '''
-    ## max-pooling with 2*2 filter size and stride=2
+    max-pooling with 2*2 filter size and stride=2
     (l, w, h) -> (l/2, w/2, h)
     '''
     assert len(data_in.shape) == 3
@@ -56,7 +56,7 @@ def pool(data_in):
 
 def padding(data_in, pad_size):
     '''
-    ## pad the first 2 dimension of data_in
+    pad the first 2 dimension of data_in
      (l, w, h), n -> (n+l+n, n+w+n, h)
     '''
     assert len(data_in.shape) == 2 or len(data_in.shape) == 3
@@ -71,7 +71,7 @@ def padding(data_in, pad_size):
 
 def fc(data_in, weights, bias):
     '''
-    ## fully-connected layer
+    fully-connected layer
     ndarray, (w, node_num), (node_num) -> (node_num)
     '''
     data = data_in.flatten()
@@ -84,7 +84,7 @@ def fc(data_in, weights, bias):
 
 def mfm_fc(data_in):
     '''
-    ## max-feature-map for fully-connected layer, 2/1
+    max-feature-map for fully-connected layer, 2/1
     (node_num) -> (node_num/2)
     '''
     assert len(data_in.shape) == 1
@@ -103,7 +103,7 @@ def mfm_fc(data_in):
 
 def softmax(data_in):
     '''
-    ## softmax layer
+    softmax layer
     (3095) -> (3095)
     '''
     m = np.amax(data_in)
@@ -115,7 +115,7 @@ def softmax(data_in):
 
 def cross_entropy(data_in, label_vec):
     '''
-    ## cross entropy as loss function. 
+    cross entropy as loss function. 
     (3095) -> 1
     '''
     l = np.log(data_in)
