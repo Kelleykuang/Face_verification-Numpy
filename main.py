@@ -279,9 +279,9 @@ class LightCNN_9(object):
                 b -= eta* g_b / batch_size
 
             for w, g_w in zip(self.fc_w,total_fc_w):
-                w - eta* g_w / batch_size
+                w -= eta* g_w / batch_size
             for b, g_b in zip(self.fc_b,total_fc_b):
-                b - eta* g_b[:,0] / batch_size
+                b -= eta* g_b[:,0] / batch_size
 
             total_loss /= batch_size
             # time2 = time.time()
@@ -704,8 +704,8 @@ if __name__ == "__main__":
     print(train_label.shape)
     a = np.zeros((train_label.shape[0],3095),dtype=int)
     a[:,:train_label.shape[1]] = train_label
-    # for i in range(train_label.shape[0]):
-    #     a[i,:train_label.shape[1]] = train_label[i]
+    for i in range(train_label.shape[0]):
+        a[i,:train_label.shape[1]] = train_label[i]
         
     # print(a)
     # print(a)

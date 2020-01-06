@@ -170,10 +170,10 @@ class LightCNN_9(object):
             self.fcout_weights = np.random.randn(256, 3095)*np.sqrt(2/(256+3095))
             self.fcout_bias = np.zeros((3095), dtype=np.double)
 
-            # self.conv_kernel = [self.conv1_kernel,self.conv2a_kernel,self.conv2_kernel,self.conv3a_kernel, \
-            #                     self.conv3_kernel,self.conv4a_kernel,self.conv4_kernel,self.conv5a_kernel, self.conv5_kernel]  
-            # self.conv_bias = [self.conv1_bias,self.conv2a_bias,self.conv2_bias,self.conv3a_bias,\
-            #                 self.conv3_bias,self.conv4a_bias,self.conv4_bias,self.conv5a_bias,self.conv5_bias]
+            self.conv_kernel = [self.conv1_kernel,self.conv2a_kernel,self.conv2_kernel,self.conv3a_kernel, \
+                                self.conv3_kernel,self.conv4a_kernel,self.conv4_kernel]  
+            self.conv_bias = [self.conv1_bias,self.conv2a_bias,self.conv2_bias,self.conv3a_bias,\
+                            self.conv3_bias,self.conv4a_bias,self.conv4_bias]
             self.fc_w = [self.fc_weights,self.fcout_weights]
             self.fc_b = [self.fc_bias,self.fcout_bias]
 
@@ -262,11 +262,19 @@ class LightCNN_9(object):
                     total_fc_w = [ w1 + dw for w1, dw in zip(total_fc_w, g_fc_w)]
                     total_fc_b = [ b1 + db for b1, db in zip(total_fc_b, g_fc_b)]
 
-                
+            # self.conv1_kernel -= eta* total_conv_w[0] / batch_size
+            # self.conv1_bias -= eta* total_conv_b[0] / batch_size 
+            # self.conv2_kernel = 
+            # self.conv2_bias = 
+            # self.conv3_kernel = 
+            # self.conv3_bias 
+            # self.conv4_kernel 
+            # self.conv4_bias                
             for w, g_w in zip(self.conv_kernel,total_conv_w):
                 w -= eta* g_w / batch_size
             for b, g_b in zip(self.conv_bias,total_conv_b):
                 b -= eta* g_b / batch_size
+
 
             for w, g_w in zip(self.fc_w,total_fc_w):
                 w - eta* g_w / batch_size
@@ -487,15 +495,15 @@ class LightCNN_9(object):
             conv4 = conv(padding(mfm4a, 1), self.conv4_kernel, self.conv4_bias)
             mfm4, mfm4_location = mfm(conv4)
 
-            conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
-            mfm5a, mfm5a_location = mfm(conv5a)
+            # conv5a = conv(mfm4, self.conv5a_kernel, self.conv5a_bias)
+            # mfm5a, mfm5a_location = mfm(conv5a)
 
-            mfm5a = mfm5a + mfm4
+            # mfm5a = mfm5a + mfm4
 
-            conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
-            mfm5, mfm5_location = mfm(conv5)
+            # conv5 = conv(padding(mfm5a,1), self.conv5_kernel, self.conv5_bias)
+            # mfm5, mfm5_location = mfm(conv5)
             
-            pool4, pool4_location = pool(mfm5)
+            pool4, pool4_location = pool(mfm4)
 
             fc1 = fc(pool4, self.fc_weights, self.fc_bias)
             mfm_fc1, mfm_fc1_location = mfm_fc(fc1)
@@ -524,19 +532,19 @@ class LightCNN_9(object):
 
             g_pool4 = get_derivative_pool(pool4_location, g_fc1_x, pool4)
             
-            g_mfm5 = get_derivative_mfm( mfm5_location, g_pool4)
-            g_conv5_w, g_conv5_b, g_conv5_x = get_derivative_conv(padding(mfm5a,1),self.conv5_kernel, self.conv5_bias, g_mfm5,conv5)
+            # g_mfm5 = get_derivative_mfm( mfm5_location, g_pool4)
+            # g_conv5_w, g_conv5_b, g_conv5_x = get_derivative_conv(padding(mfm5a,1),self.conv5_kernel, self.conv5_bias, g_mfm5,conv5)
 
-            # self.conv5_kernel -= 0.0001*g_conv5_w
-            # self.conv5_bias -= 0.0001*g_conv5_b
+            # # self.conv5_kernel -= 0.0001*g_conv5_w
+            # # self.conv5_bias -= 0.0001*g_conv5_b
             
-            g_mfm5a = get_derivative_mfm( mfm5a_location, g_conv5_x)
-            g_conv5a_w, g_conv5a_b, g_conv5a_x = get_derivative_conv(mfm4,self.conv5a_kernel, self.conv5a_bias, g_mfm5a,conv5a)
-            # self.conv5a_kernel -= 0.0001*g_conv5a_w
+            # g_mfm5a = get_derivative_mfm( mfm5a_location, g_conv5_x)
+            # g_conv5a_w, g_conv5a_b, g_conv5a_x = get_derivative_conv(mfm4,self.conv5a_kernel, self.conv5a_bias, g_mfm5a,conv5a)
+            # # self.conv5a_kernel -= 0.0001*g_conv5a_w
             # self.conv5a_bias -= 0.0001*g_conv5a_b
 
             # # # # #
-            g_mfm4 = get_derivative_mfm( mfm4_location, g_conv5a_x)
+            g_mfm4 = get_derivative_mfm( mfm4_location, g_pool4)
             g_conv4_w, g_conv4_b, g_conv4_x = get_derivative_conv(padding(mfm4a,1),self.conv4_kernel, self.conv4_bias, g_mfm4,conv4)
             # self.conv4_kernel -= 0.00001*g_conv4_w
             # self.conv4_bias -= 0.00001*g_conv4_b
@@ -571,8 +579,8 @@ class LightCNN_9(object):
             time_back2 = time.time()
             #print("bw_time:", time_back2-time_back1)
             
-            g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w, g_conv5a_w, g_conv5_w ]
-            g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b, g_conv5a_b, g_conv5_b ]
+            g_conv_w = [ g_conv1_w,g_conv2a_w, g_conv2_w, g_conv3a_w, g_conv3_w, g_conv4a_w, g_conv4_w ]
+            g_conv_b = [ g_conv1_b,g_conv2a_b, g_conv2_b, g_conv3a_b, g_conv3_b, g_conv4a_b, g_conv4_b ]
             
             g_fc_w = [g_fc1_w, g_fc2_w]
             g_fc_b = [g_fc1_b, g_fc2_b]
