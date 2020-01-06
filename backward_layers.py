@@ -57,6 +57,7 @@ def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output
     '''
     对w求导的原理是：将bp_gradient的每一层[:,:,i]作为新的filter 对input_img的每一层[:,:,j]进行卷积
     '''
+    # 记录必要的参数
     filter_size = filter.shape[0]
     input_img_size= input_img.shape[0]
     input_img_channal = input_img.shape[2] 
@@ -65,14 +66,19 @@ def get_derivative_conv(input_img, filter, filter_bias, bp_gradient, conv_output
     dw = np.zeros(filter.shape)            
     bp_gradient_filter_size = bp_gradient.shape[0]
     feature_size = input_img_size - bp_gradient_filter_size + 1
+
+    # img2col技术，将要做卷积的区域reshape成一个向量
     input_img2col = np.lib.stride_tricks.as_strided(input_img, shape=(feature_size, feature_size, input_img_channal, bp_gradient_filter_size, bp_gradient_filter_size), strides=(8*input_img_channal*input_img_size, 8*input_img_channal, 8, 8*input_img_channal*input_img_size, 8*input_img_channal))
     input_img2col = np.reshape(input_img2col, (feature_size, feature_size, input_img_channal,bp_gradient_filter_size*bp_gradient_filter_size))
+    # 对filter reshape, 将其reshape成一个向量
     bp_gradient_filter = bp_gradient.reshape(( bp_gradient_filter_size* bp_gradient_filter_size, bp_gradient.shape[-1]))
+    # 将卷积运算转化为矩阵相差
     dw = np.matmul(input_img2col,bp_gradient_filter)
     
     assert dw.shape == filter.shape
 
     tmp_bias = np.zeros(input_img.shape[-1])
+    # 对filter做180度翻转
     rot_filter = rot180(filter).swapaxes(-2,-1)
     if filter.shape[0]!= 1:
         dx = conv(padding(bp_gradient,filter.shape[0]-1), rot_filter, tmp_bias)[1:-1,1:-1,:]
@@ -98,7 +104,7 @@ def get_derivative_conv2pool(input_img, filter, filter_bias, bp_gradient):
 
 def get_derivative_conv1(input_img, filter, filter_bias, bp_gradient, conv_output):
     '''
-    Gradient calcucation of the first convolve layer
+    针对第一层卷积层的反向传播
     '''
     filter_size = filter.shape[0]
     input_img_size= input_img.shape[0]
