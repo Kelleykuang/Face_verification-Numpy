@@ -10,3 +10,6 @@ dataset_hard/
 __pycache__/
 *.bin
 *.txt
+*.docx
+*.pdf
+*.zip

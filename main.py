@@ -273,7 +273,7 @@ class LightCNN_9(object):
         FN = 0
         TP = 0
         TN = 0
-        sim_thr = 0.078
+        sim_thr = -0.0926
         allsim1 = 0
         allsim2 = 0
 
