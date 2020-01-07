@@ -112,6 +112,7 @@ class LightCNN_9(object):
         
         def SGD(train_image, train_label, test_image, test_label, epochs, batch_size, eta):
             '''Stochastic gradiend descent'''
+            
             batch_num = 0
             for j in range(epochs):
                 time1 = time.time()
